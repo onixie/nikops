@@ -12,6 +12,6 @@ pkgs.mkShell {
   buildInputs = [ pkgs.nixops ];
 
   shellHook = ''
-    export NIX_PATH="nixpkgs=${nixpkgs}:${nm ["deploy" "system" "network" "master" "worker" "hardware" "multus-cni"]}:k8s-res=${./resources}:.";
+    export NIX_PATH="nixpkgs=${nixpkgs}:${nm ["deploy" "system" "network" "master" "worker" "multus-cni"]}:k8s-res=${./resources}:${if builtins.pathExists ./proxy.nix then "k8s/proxy=./proxy.nix" else "k8s/proxy="}:.";
   '';
 }

@@ -1,13 +1,8 @@
 let deploy = import <k8s/deploy>;
     as     = import <k8s/network> {
-      address = "192.168.1.0";
-      mask = 24;
+      subnet = "192.168.1.0/24";
       gateway = "192.168.1.1";
       dns = [ "8.8.8.8" "8.8.4.4" ];
-      proxy = {
-        url = "http://proxy-server:port";
-        cert = builtins.readFile <k8s-res/certificates/proxy.crt>;
-      };
     };
 
     node1 = {

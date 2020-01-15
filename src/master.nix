@@ -1,33 +1,39 @@
-{ config, lib, options, nodes, ... }: 
+{ config, lib, options, nodes, pkgs, ... }:
 
 {
-  services.kubernetes = {
-    roles = ["master" "node"];
+    programs.bash.shellAliases = { k = "kubectl --kubeconfig=/etc/" + config.services.kubernetes.pki.etcClusterAdminKubeconfig; };
 
-    apiserver = with options.services.kubernetes.apiserver; {
-      enableAdmissionPlugins = enableAdmissionPlugins.default ++ ["PodPreset" "PodSecurityPolicy"];
-      runtimeConfig = runtimeConfig.default + ",settings.k8s.io/v1alpha1=true";
-      allowPrivileged = true;
-      #insecurePort = 8080;
-      #insecureBindAddress = "127.0.0.1";
+    environment = {
+        systemPackages = with pkgs;[ vim emacs kubectl ];
+        variables = { EDITOR = "vim"; };
     };
 
-    masterAddress = nodes.master.config.networking.hostName;
+    services.kubernetes = {
+        roles = ["master" "node"];
 
-    addons.dashboard.enable = true;
+        apiserver = with options.services.kubernetes.apiserver; {
+            enableAdmissionPlugins = enableAdmissionPlugins.default ++ ["PodPreset" "PodSecurityPolicy"];
+            runtimeConfig = runtimeConfig.default + ",settings.k8s.io/v1alpha1=true";
+            allowPrivileged = true;
+        };
 
-    addonManager.bootstrapAddons = with lib; {
-      apiserver-privileged-psp   = importJSON <k8s-res/podsecuritypolicies/privileged.json>;
-      apiserver-privileged-crb   = importJSON <k8s-res/clusterrolebindings/privileged.json>;
-      apiserver-privileged-cr    = importJSON <k8s-res/clusterroles/privileged.json>;
+        masterAddress = nodes.master.config.networking.hostName;
 
-      apiserver-restricted-psp   = importJSON <k8s-res/podsecuritypolicies/restricted.json>;
-      apiserver-restricted-crb   = importJSON <k8s-res/clusterrolebindings/restricted.json>;
-      apiserver-restricted-cr    = importJSON <k8s-res/clusterroles/restricted.json>;
-    };
-    
-    addonManager.addons = with config.services.kubernetes.addons; {
-      coredns-cm.data.Corefile = ".:${toString 10053} {
+        addons.dashboard.enable = true;
+
+        addonManager.bootstrapAddons = with lib; {
+            apiserver-privileged-psp = importJSON <k8s-res/podsecuritypolicies/privileged.json> ;
+            apiserver-restricted-psp = importJSON <k8s-res/podsecuritypolicies/restricted.json> ;
+
+            apiserver-privileged-cr  = importJSON <k8s-res/clusterroles/privileged.json> ;
+            apiserver-restricted-cr  = importJSON <k8s-res/clusterroles/restricted.json> ;
+
+            apiserver-privileged-crb = importJSON <k8s-res/clusterrolebindings/privileged.json> ;
+            apiserver-restricted-crb = importJSON <k8s-res/clusterrolebindings/restricted.json> ;
+        };
+
+        addonManager.addons = with config.services.kubernetes.addons; {
+            coredns-cm.data.Corefile = ".:${toString 10053} {
             errors
             health :${toString 10054}
             kubernetes ${dns.clusterDomain} in-addr.arpa ip6.arpa {
@@ -45,7 +51,7 @@
             loop
             reload
             loadbalance
-      }";
+            }";
+        };
     };
-  };
 }

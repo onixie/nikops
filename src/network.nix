@@ -1,22 +1,38 @@
 network: theNode: otherNodes: { lib, ... }:
 
-let allNodes = lib.unique ([ theNode ] ++ otherNodes);
-in {
-  deployment.targetHost = theNode.address;
+with lib;
 
-  networking.hostName = theNode.name;
-  networking.interfaces.ens2.ipv4.addresses = [ {
-    address = theNode.address;
-    prefixLength = network.mask;
-  } ];
+let allNodes = unique ([ theNode ] ++ otherNodes);
+    proxy    = import <k8s/proxy>;
+in mkMerge
+    [
+        {
+            deployment.targetHost = theNode.address;
 
-  networking.defaultGateway = network.gateway;
-  networking.nameservers    = network.dns;
-  networking.extraHosts     = lib.concatMapStringsSep "\n" (node : "${node.address} ${node.name}") allNodes;
+            networking.hostName = theNode.name;
+            networking.usePredictableInterfaceNames = false;
+            networking.interfaces.eth0.ipv4.addresses = [ {
+                address = theNode.address;
+                prefixLength = toInt (elemAt (splitString "/" network.subnet) 1);
+            } ];
 
-  networking.proxy.default  = network.proxy.url;
-  networking.proxy.noProxy  = "127.0.0.1,localhost,${network.address}/${toString network.mask},${lib.concatMapStringsSep "," (node : node.name) allNodes}";
-  security.pki.certificates = [ network.proxy.cert ];
+            networking.defaultGateway = network.gateway;
+            networking.nameservers    = network.dns;
+            networking.extraHosts     = concatMapStringsSep "\n" (node : "${node.address} ${node.name}") allNodes;
 
-  networking.firewall.enable = false;
-}
+            networking.firewall.enable = false;
+        }
+
+        (mkIf (hasAttr "url" proxy && proxy.url != null)
+            {
+                networking.proxy.default  = proxy.url;
+                networking.proxy.noProxy  = "127.0.0.1,localhost,${network.subnet},${concatMapStringsSep "," (node : node.name) allNodes}";
+            }
+        )
+
+        (mkIf (hasAttr "crt" proxy && proxy.crt != null)
+            {
+                security.pki.certificates = [ proxy.crt ];
+            }
+        )
+    ]
