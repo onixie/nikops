@@ -6,17 +6,17 @@ let deploy = import <k8s/deploy>;
     };
 
     node1 = {
-      name = "master";
-      address = "192.168.1.10";
+        name = "master";
+        address = "192.168.1.10";
     };
 
     node2 = {
-      name = "worker1";
-      address = "192.168.1.11";
+        name = "worker1";
+        address = "192.168.1.11";
     };
 
-    cluster = [ node1 node2 ];
+    inCluster = [ node1 node2 ];
 in {
-  master  = deploy <k8s/master> (as node1) cluster;
-  worker1 = deploy <k8s/worker> (as node2) cluster;
+    master  = deploy node1 as <k8s/master> inCluster;
+    worker1 = deploy node2 as <k8s/worker> inCluster;
 }
