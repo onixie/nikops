@@ -1,22 +1,29 @@
-network: theNode: otherNodes: { lib, ... }:
+network: theNode: otherNodes: { lib, config, ... }:
 
 with lib;
 
 let allNodes = unique ([ theNode ] ++ otherNodes);
-    proxy    = import <k8s/proxy>;
+    proxy    = import <k8s/proxy> ;
+    iface    = if config.deployment.targetEnv == "virtualbox"
+               then "enp0s8"
+               else null;
 in mkMerge
     [
         {
-            deployment.targetHost = theNode.address;
+            networking.hostName    = theNode.name;
+            networking.privateIPv4 = mkForce theNode.address; # bug? nixops should respect this configuration.
+            deployment.targetHost  = theNode.address;
 
-            networking.hostName = theNode.name;
-            networking.usePredictableInterfaceNames = false;
-            networking.interfaces.eth0.ipv4.addresses = [ {
+            # networking.usePredictableInterfaceNames = false; # work with virtualbox but need to reboot once
+            # networking.defaultGateway = network.gateway; # not work for virtualbox
+
+            networking.interfaces."${iface}".ipv4.addresses = [ {
                 address = theNode.address;
                 prefixLength = toInt (elemAt (splitString "/" network.subnet) 1);
             } ];
 
-            networking.defaultGateway = network.gateway;
+            services.flannel.iface    = iface;
+
             networking.nameservers    = network.dns;
             networking.extraHosts     = concatMapStringsSep "\n" (node : "${node.address} ${node.name}") allNodes;
 

@@ -1,6 +1,6 @@
 { config, lib, pkgs, options, ... }:
 
-let 
+let
   multus-cni = with pkgs; buildGoModule rec {
     pname = "multus-cni";
     version = "master";
@@ -87,6 +87,8 @@ with top.lib; {
       description = "CNI DHCP service ";
       serviceConfig = {
         ExecStart = "/opt/cni/bin/dhcp daemon";
+        Restart = "always";
+        RestartSec= "10s";
       };
     };
 

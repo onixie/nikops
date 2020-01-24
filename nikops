@@ -1,0 +1,61 @@
+#! /usr/bin/env nix-shell
+#! nix-shell -i bash
+
+run_deploy() {
+    mkdir -p resources/pki
+
+    if ! [ -f resources/pki/ca.pem ]
+    then cat <<EOF | cfssl genkey -initca - | cfssljson -bare resources/pki/ca
+{
+  "CN"     : "Nikops Root CA",
+  "key"    : {
+    "algo" : "ecdsa",
+    "size" : 256
+  },
+  "names"  : [
+    {
+      "C"  : "",
+      "L"  : "",
+      "O"  : "",
+      "OU" : "",
+      "ST" : ""
+    }
+  ]
+}
+EOF
+    fi
+
+    CFSSL_API_TOKEN_LENGTH=32
+
+    if ! [ -f resources/pki/apitoken.secret ]
+    then
+        echo Generate API Token for CA interaction
+        head -c $(($CFSSL_API_TOKEN_LENGTH / 2)) /dev/urandom | od -An -t x | tr -d ' ' > resources/pki/apitoken.secret
+    fi
+
+    if ! nixops info $@ 1>/dev/null 2>&1
+    then nixops create . $@
+    fi
+
+    nixops deploy $@
+}
+
+SUB_COMMAND=$1
+shift
+
+if ! echo "$@" | egrep "^.*(-d |--deploy).*$"
+then
+DEFAULT_DEPLOYMENT_NAME=" -d nikops"
+fi
+
+case "$SUB_COMMAND" in
+    deploy)
+        run_deploy $@ $DEFAULT_DEPLOYMENT_NAME
+        ;;
+    kubectl|k8s|kubernetes|cluster)
+        nixops ssh $DEFAULT_DEPLOYMENT_NAME master1 kubectl --kubeconfig=/etc/kubernetes/cluster-admin.kubeconfig $@
+        ;;
+    *)
+        nixops $SUB_COMMAND $DEFAULT_DEPLOYMENT_NAME $@
+        ;;
+esac

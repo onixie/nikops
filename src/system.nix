@@ -1,7 +1,7 @@
-{ pkgs, ... }:
+deployCfg: { lib, config, ... }:
 
-{
-    deployment.targetEnv  = "virtualbox";
-    deployment.virtualbox.memorySize = 1024; # megabytes
-    deployment.virtualbox.vcpu = 2; # number of cpus
+with lib;
+
+deployCfg // {
+    swapDevices = mkForce [ ]; # https://github.com/NixOS/nixops/issues/1062
 }

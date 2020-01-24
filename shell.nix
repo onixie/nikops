@@ -9,9 +9,9 @@ let
 in
 
 pkgs.mkShell {
-  buildInputs = [ pkgs.nixops ];
+  buildInputs = with pkgs; [ nixops cfssl ];
 
   shellHook = ''
-    export NIX_PATH="nixpkgs=${nixpkgs}:${nm ["deploy" "system" "network" "master" "worker" "multus-cni"]}:k8s-res=${./resources}:${if builtins.pathExists ./proxy.nix then "k8s/proxy=./proxy.nix" else "k8s/proxy="}:.";
+    export NIX_PATH="nixpkgs=${nixpkgs}:${nm ["deploy" "system" "network" "master" "worker" "multus-cni" "loadbalancer"]}:k8s-res=./resources:${if builtins.pathExists ./proxy.nix then "k8s/proxy=./proxy.nix" else "k8s/proxy="}:.";
   '';
 }
