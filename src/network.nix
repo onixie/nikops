@@ -1,10 +1,9 @@
-network: theNode: otherNodes: { lib, config, ... }:
+theClusterName: theClusterEndpoint: theNode: theNodes: theNetwork: { lib, config, ... }:
 
 with lib;
 
-let allNodes = unique ([ theNode ] ++ otherNodes);
-    proxy    = import <k8s/proxy> ;
-    iface    = if config.deployment.targetEnv == "virtualbox"
+let theProxy = import <k8s/proxy> ;
+    theNetIF = if config.deployment.targetEnv == "virtualbox"
                then "enp0s8"
                else null;
 in mkMerge
@@ -17,29 +16,32 @@ in mkMerge
             # networking.usePredictableInterfaceNames = false; # work with virtualbox but need to reboot once
             # networking.defaultGateway = network.gateway; # not work for virtualbox
 
-            networking.interfaces."${iface}".ipv4.addresses = [ {
+            networking.interfaces."${theNetIF}".ipv4.addresses = [ {
                 address = theNode.address;
-                prefixLength = toInt (elemAt (splitString "/" network.subnet) 1);
+                prefixLength = toInt (elemAt (splitString "/" theNetwork.subnet) 1);
             } ];
 
-            services.flannel.iface    = iface;
+            services.flannel.iface    = theNetIF;
 
-            networking.nameservers    = network.dns;
-            networking.extraHosts     = concatMapStringsSep "\n" (node : "${node.address} ${node.name}") allNodes;
+            networking.nameservers    = theNetwork.dns;
+            networking.extraHosts     = ''
+            ${theClusterEndpoint} ${theClusterName}
+            ${concatMapStringsSep "\n" (n: "${n.address} ${n.name}") theNodes}
+            '';
 
             networking.firewall.enable = false;
         }
 
-        (mkIf (hasAttr "url" proxy && proxy.url != null)
+        (mkIf (hasAttr "url" theProxy && theProxy.url != null)
             {
-                networking.proxy.default  = proxy.url;
-                networking.proxy.noProxy  = "127.0.0.1,localhost,${network.subnet},${concatMapStringsSep "," (node : node.name) allNodes}";
+                networking.proxy.default  = theProxy.url;
+                networking.proxy.noProxy  = "127.0.0.1,localhost,${theClusterName},${theNetwork.subnet},${concatMapStringsSep "," (n: n.name) theNodes}";
             }
         )
 
-        (mkIf (hasAttr "crt" proxy && proxy.crt != null)
+        (mkIf (hasAttr "crt" theProxy && theProxy.crt != null)
             {
-                security.pki.certificates = [ proxy.crt ];
+                security.pki.certificates = [ theProxy.crt ];
             }
         )
     ]

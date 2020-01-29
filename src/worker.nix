@@ -1,9 +1,6 @@
-theNode: { lib, config, nodes, ... }:
-with lib;
+theClusterName: theClusterEndpoint: theNode: theMasterNodes: { config, ... }:
 
-let masterNodes   = filter (n: any (r: r == "master") n.config.services.kubernetes.roles ) (attrValues nodes);
-    cfsslAPITokenBaseName = "apitoken.secret";
-    cfsslAPITokenPath = "${config.services.kubernetes.secretsPath}/${cfsslAPITokenBaseName}";
+let top = config.services.kubernetes;
 in
 {
     deployment.keys = {
@@ -22,15 +19,15 @@ in
         };
     };
 
-    systemd.services.cfssl.enable = false; # checkme: nixos/kubernetes should disable this on worker
-
     systemd.services.kube-certmgr-bootstrap.preStart = ''
-      ln -fs /run/keys/cfssl-ca        ${config.services.kubernetes.secretsPath}/ca.pem
-      ln -fs /run/keys/cfssl-api-token ${cfsslAPITokenPath}
+      ln -fs /run/keys/cfssl-ca        ${top.secretsPath}/ca.pem
+      ln -fs /run/keys/cfssl-api-token ${top.secretsPath}/apitoken.secret
     '';
 
+    systemd.services.cfssl.enable = false; # checkme: nixos/kubernetes should disable this on worker
+
     services.kubernetes = {
-        roles = ["node"];
-        masterAddress =  nodes.kubernetes.config.networking.hostName; # (head masterNodes).config.networking.hostName;
+        roles = [ "node" ];
+        masterAddress = theClusterName;
     };
 }

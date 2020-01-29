@@ -1,7 +1,6 @@
-theNode: { lib, config, nodes, ... }:
-with lib;
+theClusterName: theClusterEndpoint: theNode: theMasterNodes: { lib, ... }:
 
-let masterNodes = filter (n: any (r: r == "master") n.config.services.kubernetes.roles ) (attrValues nodes);
+let serveOn = port: with lib; concatMapStringsSep "\n" (n: "server ${n.name} ${n.address}:${toString port} check") theMasterNodes;
 in
 {
     services.haproxy = {
@@ -22,7 +21,7 @@ in
               mode tcp
               balance roundrobin
               option tcp-check
-              ${concatStringsSep "\n" (map (m: with m.config.networking; "server ${hostName} ${privateIPv4}:6443 check") masterNodes)}
+              ${serveOn 6443}
 
           frontend cfssl-server-proxy
               bind ${theNode.address}:8888
@@ -33,7 +32,7 @@ in
               mode tcp
               balance roundrobin
               option tcp-check
-              ${concatStringsSep "\n" (map (m: with m.config.networking; "server ${hostName} ${privateIPv4}:8888 check") masterNodes)}
+              ${serveOn 8888}
         '';
     };
 }

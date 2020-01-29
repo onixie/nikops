@@ -1,8 +1,8 @@
-theNode: { config, lib, options, nodes, pkgs, ... }:
+theClusterName: theClusterEndpoint: theNode: theMasterNodes: { config, lib, options, nodes, pkgs, ... }:
 
 with lib;
 
-let masterNodes  = filter (n: any (r: r == "master") n.config.services.kubernetes.roles ) (attrValues nodes);
+let top = config.services.kubernetes;
     cfsslAPITokenBaseName = "apitoken.secret";
     cfsslAPITokenPath = "${config.services.cfssl.dataDir}/${cfsslAPITokenBaseName}";
 in
@@ -14,10 +14,10 @@ in
 
     programs.bash = {
 
-        shellAliases = with config.services.kubernetes; {
+        shellAliases = {
             s = "systemctl";
-	        k = "kubectl --kubeconfig=/etc/${pki.etcClusterAdminKubeconfig}";
-            e = "ETCDCTL_API=3 etcdctl --endpoints=https://etcd.local:2379 --cacert=${secretsPath}/ca.pem --cert=${secretsPath}/etcd.pem --key=${secretsPath}/etcd-key.pem";
+	        k = "kubectl --kubeconfig=/etc/${top.pki.etcClusterAdminKubeconfig}";
+            e = "ETCDCTL_API=3 etcdctl --endpoints=https://etcd.local:2379 --cacert=${top.secretsPath}/ca.pem --cert=${top.secretsPath}/etcd.pem --key=${top.secretsPath}/etcd-key.pem";
         };
 
         interactiveShellInit = concatStringsSep "\n" [
@@ -57,8 +57,7 @@ in
     # };
 
     # hack: workaround for the bug describe above
-    systemd.services.cfssl.preStart = with config.services.kubernetes.pki; mkBefore
-        ''
+    systemd.services.cfssl.preStart = with top.pki; mkBefore ''
       set -e
 
       # Replacement for genCfsslCACert
@@ -73,7 +72,7 @@ in
     services.etcd = {
         initialAdvertisePeerUrls = mkForce ["https://${theNode.address}:2380"];
         listenPeerUrls = mkForce ["https://${theNode.address}:2380"];
-        initialCluster = mkForce (map (m: with m.config.networking; "${hostName}=https://${privateIPv4}:2380") masterNodes);
+        initialCluster = mkForce (map (n: "${n.name}=https://${n.address}:2380") theMasterNodes);
 
         advertiseClientUrls = mkForce ["https://${theNode.address}:2379"];
         listenClientUrls = ["https://${theNode.address}:2379"]; # dont mkForce because the default 127.0.0.1 is expected.
@@ -89,7 +88,7 @@ in
             # caCertPathPrefix = "${<k8s-res/pki>}/ca";
         };
 
-        roles = ["master" "node"];
+        roles = [ "master" ] ++ (if elem "worker" theNode.roles then [ "node" ] else []);
 
         apiserver = with options.services.kubernetes.apiserver; {
             advertiseAddress = theNode.address;
@@ -98,9 +97,9 @@ in
             allowPrivileged = true;
         };
 
-        apiserverAddress = mkForce "https://${theNode.address}:${toString config.services.kubernetes.apiserver.securePort}"; # bugs in nixos/kubernetes, port is missing if use advertise
+        apiserverAddress = mkForce "https://${theNode.address}:${toString top.apiserver.securePort}"; # bugs in nixos/kubernetes, port is missing if use advertise
 
-        masterAddress = nodes.kubernetes.config.networking.hostName;
+        masterAddress = theClusterName;
 
         addons.dashboard.enable = true;
 
@@ -115,7 +114,7 @@ in
             apiserver-restricted-crb = importJSON <k8s-res/clusterrolebindings/restricted.json> ;
         };
 
-        addonManager.addons = with config.services.kubernetes.addons; {
+        addonManager.addons = with top.addons; {
             coredns-cm.data.Corefile = ".:${toString 10053} {
             errors
             health :${toString 10054}
@@ -125,7 +124,7 @@ in
               fallthrough in-addr.arpa ip6.arpa
             }
             hosts {
-              ${nodes.master1.config.networking.extraHosts}
+              ${nodes."${theNode.name}".config.networking.extraHosts}
               fallthrough
             }
             prometheus :${toString 10055}

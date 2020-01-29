@@ -53,7 +53,8 @@ case "$SUB_COMMAND" in
         run_deploy $@ $DEFAULT_DEPLOYMENT_NAME
         ;;
     kubectl|k8s|kubernetes|cluster)
-        nixops ssh $DEFAULT_DEPLOYMENT_NAME master1 kubectl --kubeconfig=/etc/kubernetes/cluster-admin.kubeconfig $@
+        MASTER_NODE=$(nixops ssh-for-each $DEFAULT_DEPLOYMENT_NAME -- which kubectl 2>&1 | grep ".*> /.*/kubectl" | sed -e 's/^\(.*\)> .*/\1/')
+        nixops ssh $DEFAULT_DEPLOYMENT_NAME $MASTER_NODE kubectl --kubeconfig=/etc/kubernetes/cluster-admin.kubeconfig $@
         ;;
     *)
         nixops $SUB_COMMAND $DEFAULT_DEPLOYMENT_NAME $@
