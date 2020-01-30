@@ -3,7 +3,13 @@ theClusterName: theClusterEndpoint: theNode: theMasterNodes: { lib, ... }:
 let serveOn = port: with lib; concatMapStringsSep "\n" (n: "server ${n.name} ${n.address}:${toString port} check") theMasterNodes;
 in
 {
+    systemd.services.haproxy.serviceConfig = {
+        Restart    = "always";
+        RestartSec = "5s";
+    };
+
     services.haproxy = {
+
         enable = true;
         # checkme: timeout is the default value from kube-apiserver --min-request-timeout. It's better to make it configurable
         config = ''
@@ -33,6 +39,17 @@ in
               balance roundrobin
               option tcp-check
               ${serveOn 8888}
+
+          frontend etcd-proxy
+              bind ${theNode.address}:2379
+              mode tcp
+              default_backend etcd-servers
+
+          backend etcd-servers
+              mode tcp
+              balance roundrobin
+              option tcp-check
+              ${serveOn 2379}
         '';
     };
 }

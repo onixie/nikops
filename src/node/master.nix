@@ -15,14 +15,12 @@ in
     programs.bash = {
 
         shellAliases = {
-            s = "systemctl";
-	        k = "kubectl --kubeconfig=/etc/${top.pki.etcClusterAdminKubeconfig}";
-            e = "ETCDCTL_API=3 etcdctl --endpoints=https://etcd.local:2379 --cacert=${top.secretsPath}/ca.pem --cert=${top.secretsPath}/etcd.pem --key=${top.secretsPath}/etcd-key.pem";
+	        k = "kubectl --server=https://${theClusterName}:6443 --kubeconfig=/etc/${top.pki.etcClusterAdminKubeconfig}";
+            e = "ETCDCTL_API=3 etcdctl --endpoints=https://${theClusterName}:2379 --cacert=${top.secretsPath}/ca.pem --cert=${top.secretsPath}/etcd.pem --key=${top.secretsPath}/etcd-key.pem";
         };
 
         interactiveShellInit = concatStringsSep "\n" [
             "source <(kubectl completion bash) && complete -F __start_kubectl k"
-            ". ${pkgs.systemd}/share/bash-completion/completions/systemctl && complete -F _systemctl s"
         ];
     };
 
@@ -57,17 +55,103 @@ in
     # };
 
     # hack: workaround for the bug describe above
-    systemd.services.cfssl.preStart = with top.pki; mkBefore ''
+    systemd.services.cfssl.preStart = mkBefore ''
       set -e
 
       # Replacement for genCfsslCACert
-      ln -fs /run/keys/cfssl-ca     ${caCertPathPrefix}.pem
-      ln -fs /run/keys/cfssl-ca-key ${caCertPathPrefix}-key.pem
+      ln -fs /run/keys/cfssl-ca     ${top.pki.caCertPathPrefix}.pem
+      ln -fs /run/keys/cfssl-ca-key ${top.pki.caCertPathPrefix}-key.pem
 
       # Replacement for genCfsslAPIToken
       ln -fs /run/keys/cfssl-api-token ${cfsslAPITokenPath}
 
     '';
+
+    systemd.services.kube-certmgr-bootstrap.script = mkForce ''
+      cp -pd /run/keys/cfssl-ca        ${top.secretsPath}/ca.pem
+      ln -fs /run/keys/cfssl-api-token ${top.secretsPath}/apitoken.secret
+    '';
+
+    systemd.services.etcd-runtime-reconfigure = {
+        description = "Etcd auto runtime reconfiguration";
+        wantedBy = [ "etcd.service" ];
+        after = [ "etcd.service" ];
+        environment = {
+            ETCDCTL_API    = "3";
+            ETCDCTL_CACERT = "${top.secretsPath}/ca.pem";
+            ETCDCTL_CERT   = "${top.secretsPath}/etcd.pem";
+            ETCDCTL_KEY    = "${top.secretsPath}/etcd-key.pem";
+            ETCDCTL_ENDPOINTS = "https://${theClusterName}:2379";
+        };
+        script = let members = concatMapStringsSep "\\n" (n: "${n.name},${concatStringsSep "," nodes."${n.name}".config.services.etcd.listenPeerUrls}") theMasterNodes; in ''
+        set +e
+        MEMBERS_CUR=$(${pkgs.etcd}/bin/etcdctl member list -w=simple | cut -f1,3 -d',' | tr -d ' ')
+        MEMBERS_ADD=$(comm -13 <(echo "$MEMBERS_CUR" | cut -f2 -d',' | sort) <(printf "${members}" | cut -f1 -d',' | sort))
+        MEMBERS_REM=$(comm -23 <(echo "$MEMBERS_CUR" | cut -f2 -d',' | sort) <(printf "${members}" | cut -f1 -d',' | sort))
+
+        for mr in $MEMBERS_REM; do
+            mid=$(echo "$MEMBERS_CUR" | grep $mr | cut -f1 -d',')
+
+            ${pkgs.etcd}/bin/etcdctl member remove $mid
+        done
+
+        for ma in $MEMBERS_ADD; do
+            if [[ "$ma" == "${theNode.name}" ]]; then
+                ${pkgs.etcd}/bin/etcdctl member add $ma --peer-urls="$(printf "${members}" | grep $ma | cut -f2 -d',')"
+                rm "${config.services.etcd.dataDir}/member" -rf
+                systemctl restart etcd
+            fi
+        done
+        '';
+
+        serviceConfig = {
+            RestartSec = "30s";
+            Restart = "always";
+        };
+    };
+
+    #systemd.services.etcd.environment.ETCD_INITIAL_CLUSTER_STATE = mkForce "existing";
+
+    systemd.services.kube-node-role-reconfigure = {
+        description = "K8s node role auto reconfiguration";
+        wantedBy = [ "kubernetes.target" ];
+        after = [ "kubernetes.target" ];
+        environment = {
+            KUBECONFIG = "/etc/kubernetes/cluster-admin.kubeconfig";
+        };
+        script = let pureMasters = filter (n: ! elem "worker" n.roles) theMasterNodes;
+                     workMasters = filter (n:   elem "worker" n.roles) theMasterNodes;
+                     workers     = filter (n: n.config.services.kubernetes.roles == [ "node" ]) (attrValues nodes);
+                 in ''
+        set +e
+
+        for mn in ${concatMapStringsSep " " (m: m.name) pureMasters}; do
+           ${pkgs.kubectl}/bin/kubectl taint --overwrite nodes $mn unschedulable=true:NoSchedule
+           ${pkgs.kubectl}/bin/kubectl taint --overwrite nodes $mn node-role.kubernetes.io/master=true:NoExecute
+           ${pkgs.kubectl}/bin/kubectl label --overwrite nodes $mn node-role.kubernetes.io/master=true
+           ${pkgs.kubectl}/bin/kubectl label --overwrite nodes $mn node-role.kubernetes.io/worker-
+        done
+
+        for mn in ${concatMapStringsSep " " (m: m.name) workMasters}; do
+           ${pkgs.kubectl}/bin/kubectl taint --overwrite nodes $mn unschedulable-
+           ${pkgs.kubectl}/bin/kubectl taint --overwrite nodes $mn node-role.kubernetes.io/master-
+           ${pkgs.kubectl}/bin/kubectl label --overwrite nodes $mn node-role.kubernetes.io/master=true
+           ${pkgs.kubectl}/bin/kubectl label --overwrite nodes $mn node-role.kubernetes.io/worker=true
+        done
+
+        for mn in ${concatMapStringsSep " " (m: m.config.networking.hostName) workers}; do
+           ${pkgs.kubectl}/bin/kubectl taint --overwrite nodes $mn unschedulable-
+           ${pkgs.kubectl}/bin/kubectl taint --overwrite nodes $mn node-role.kubernetes.io/master-
+           ${pkgs.kubectl}/bin/kubectl label --overwrite nodes $mn node-role.kubernetes.io/master-
+           ${pkgs.kubectl}/bin/kubectl label --overwrite nodes $mn node-role.kubernetes.io/worker=true
+        done
+        '';
+
+        serviceConfig = {
+            RestartSec = "30s";
+            Restart = "always";
+        };
+    };
 
     services.etcd = {
         initialAdvertisePeerUrls = mkForce ["https://${theNode.address}:2380"];
@@ -86,6 +170,7 @@ in
             genCfsslCACert   = false;
             genCfsslAPIToken = false;
             # caCertPathPrefix = "${<k8s-res/pki>}/ca";
+            pkiTrustOnBootstrap = false;
         };
 
         roles = [ "master" ] ++ (if elem "worker" theNode.roles then [ "node" ] else []);

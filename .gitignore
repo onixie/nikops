@@ -1,4 +1,5 @@
 *~
 *#
 proxy.nix
+deployment.nix
 resources/pki/*

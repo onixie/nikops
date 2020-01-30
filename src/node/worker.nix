@@ -1,5 +1,6 @@
-theClusterName: theClusterEndpoint: theNode: theMasterNodes: { config, ... }:
+theClusterName: theClusterEndpoint: theNode: theMasterNodes: { config, lib, ... }:
 
+with lib;
 let top = config.services.kubernetes;
 in
 {
@@ -19,15 +20,16 @@ in
         };
     };
 
-    systemd.services.kube-certmgr-bootstrap.preStart = ''
-      ln -fs /run/keys/cfssl-ca        ${top.secretsPath}/ca.pem
+    systemd.services.cfssl.enable = false; # checkme: nixos/kubernetes should disable this on worker
+
+    systemd.services.kube-certmgr-bootstrap.script = mkForce ''
+      cp -pd /run/keys/cfssl-ca        ${top.secretsPath}/ca.pem
       ln -fs /run/keys/cfssl-api-token ${top.secretsPath}/apitoken.secret
     '';
-
-    systemd.services.cfssl.enable = false; # checkme: nixos/kubernetes should disable this on worker
 
     services.kubernetes = {
         roles = [ "node" ];
         masterAddress = theClusterName;
+        pki.pkiTrustOnBootstrap = false;
     };
 }

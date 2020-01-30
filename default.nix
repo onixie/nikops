@@ -1,4 +1,4 @@
-import <k8s/deploy> {
+import <k8s/cluster> {
 
     network = {
         subnet  = "192.168.56.0/24";
@@ -21,4 +21,18 @@ import <k8s/deploy> {
         address = "192.168.56.12";
     };
 
+    node3 = {
+        roles = [ "master" ];
+        address = "192.168.56.13";
+    };
+
+    # node4 = {
+    #     roles = [ "master" "worker" ];
+    #     address = "192.168.56.14";
+    # };
+
+    # node5 = {
+    #     roles = [ "master" "worker" ];
+    #     address = "192.168.56.15";
+    # };
 }
