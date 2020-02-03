@@ -14,7 +14,7 @@ let isLB     = n: elem "loadbalancer" n.roles;
         virtualbox.headless   = true;
         virtualbox.memorySize = 2048;
         virtualbox.vcpu       = 2;
-    } ;# // import <k8s/deployment> ;
+    } // (import <k8s/deployment>);
 
     theNodes = mapAttrs (k: n: n // {
         name = k;
