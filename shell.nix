@@ -14,6 +14,7 @@ pkgs.mkShell {
     buildInputs = with pkgs; [ nixops cfssl ];
 
     shellHook = ''
+    export NIXOPS_STATE="./.state.nixops"
     export NIX_PATH="${lib.concatStringsSep ":"
         [
             "nixpkgs=${nixpkgs}"

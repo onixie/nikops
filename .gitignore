@@ -3,3 +3,4 @@
 proxy.nix
 deployment.nix
 resources/pki/*
+.state.nixops*
