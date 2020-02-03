@@ -14,6 +14,12 @@ let isLB     = n: elem "loadbalancer" n.roles;
         virtualbox.headless   = true;
         virtualbox.memorySize = 2048;
         virtualbox.vcpu       = 2;
+
+        #targetEnv             = "libvirtd"; # fixme: need to add kvm group to nixbld users for /dev/kvm and make /var/lib/libvirt/images/ accessible for nixbld
+        libvirtd.headless     = true;
+        libvirtd.memorySize   = 2048;
+        libvirtd.vcpu         = 2;
+        #libvirtd.URI          = "qemu://system";
     } // (import <k8s/deployment>);
 
     theNodes = mapAttrs (k: n: n // {

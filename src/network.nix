@@ -5,7 +5,10 @@ with lib;
 let theProxy = import <k8s/proxy> ;
     theNetIF = if config.deployment.targetEnv == "virtualbox"
                then "enp0s8"
-               else null;
+               else
+                   if config.deployment.targetEnv == "libvirtd"
+                   then "enp0s2"
+                   else null;
 in mkMerge
     [
         {
