@@ -19,7 +19,7 @@ let
     runHook postBuild
     '';
 
-    modSha256 = "1zccbz9npbx65icz5pd84lkzn2rz4k9cwb4c2fzaq17jyn9vqz21";
+    modSha256 = "0j390lrwm8v9kq8w1fj28cs6idgqx95yyy76irj4w60v6ihy082y";
 
     meta = with lib; {
       description = "Multus CNI enables attaching multiple network interfaces to pods in Kubernetes.";
@@ -51,6 +51,7 @@ with top.lib; {
         config = [{
           name = "multus-cni-network";
           type = "multus";
+          cniVersion = "0.3.1";
           capabilities = {
             portMappings = true;
           };
