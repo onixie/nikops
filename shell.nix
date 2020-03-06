@@ -1,7 +1,14 @@
 let
     nixpkgs = builtins.fetchTarball {
         url    = "https://nixos.org/channels/nixos-unstable/nixexprs.tar.xz";
-        sha256 = "189770mh3bcdvnkpnabdyxz026w5cr9v03rn3ix1rw6ci4i8l83w";
+        sha256 = "1ygvhl72mjwfgkag612q9b6nvh0k5dhdqsr1l84jmsjk001fqfa7";
+    };
+
+    nixops          = builtins.fetchGit https://github.com/onixie/nixops;
+    nixops-vbox     = builtins.fetchGit https://github.com/onixie/nixops-vbox;
+    nixops-libvirtd = builtins.fetchGit {
+        url = https://github.com/onixie/nixops-libvirtd;
+        ref = "network-resource-support";
     };
 
     pkgs = import nixpkgs { config = {}; };
@@ -11,7 +18,15 @@ let
 in
 
 pkgs.mkShell {
-    buildInputs = with pkgs; [ nixops cfssl ];
+    buildInputs = [
+        (import "${nixops}/release.nix" {
+            p = (p: [
+                (p.callPackage "${nixops-vbox}/release.nix" {})
+                (p.callPackage "${nixops-libvirtd}/release.nix" {})
+            ]);
+        }).build.x86_64-linux
+        pkgs.cfssl
+    ];
 
     shellHook = ''
     export NIXOPS_STATE="./.state.nixops"
