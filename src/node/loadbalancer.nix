@@ -4,7 +4,7 @@ let serveOn = port: with lib; concatMapStringsSep "\n" (n: "server ${n.name} ${n
 in
 {
     systemd.services.haproxy.serviceConfig = {
-        Restart    = "always";
+        Restart    = lib.mkForce "always";
         RestartSec = "5s";
     };
 
