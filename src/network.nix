@@ -18,11 +18,10 @@ in mkMerge
 
             # networking.usePredictableInterfaceNames = false; # work with virtualbox but need to reboot once
             # networking.defaultGateway = network.gateway; # not work for virtualbox
-
-            networking.interfaces."${theNetIF}".ipv4.addresses = [ {
-                address = theNode.address;
-                prefixLength = toInt (elemAt (splitString "/" theNetwork.subnet) 1);
-            } ];
+            # networking.interfaces."${theNetIF}".ipv4.addresses = [ {
+            #     address = theNode.address;
+            #     prefixLength = toInt (elemAt (splitString "/" theNetwork.subnet) 1);
+            # } ];
 
             services.flannel.iface    = theNetIF;
 
