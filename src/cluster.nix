@@ -17,9 +17,10 @@ let isLB     = n: elem "loadbalancer" n.roles;
             headless   = true;
             memorySize = 2048;
             vcpu       = 2;
-        };
+        } // (import <k8s/hypervisor>);
     } [
-        (theNode.deployment or {}) {
+        (theNode.deployment or {})
+        {
             targetEnv = theHype;
             "${theHype}".networks = (if isVBox theHype then [ { type = "nat"; } ] else []) ++ [
                 resources."${theHype}Networks".network
@@ -32,7 +33,7 @@ let isLB     = n: elem "loadbalancer" n.roles;
             type = if isVBox theHype then "hostonly" else "nat";
             cidrBlock = theNetwork.subnet;
             staticIPs = mapAttrs' (_: theNode: nameValuePair theNode.address resources.machines."${theNode.name}") theNodes;
-        };
+        } // filterAttrs (k: v: k == "URI") (import <k8s/hypervisor>);
     };
 
     theNodes = mapAttrs (k: n: n // {

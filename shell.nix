@@ -40,9 +40,9 @@ pkgs.mkShell {
              then "k8s/proxy=./proxy.nix"
              else "k8s/proxy=")
 
-            (if builtins.pathExists ./deployment.nix
-             then "k8s/deployment=./deployment.nix"
-             else "k8s/deployment=")
+            (if builtins.pathExists ./hypervisor.nix
+             then "k8s/hypervisor=./hypervisor.nix"
+             else "k8s/hypervisor=")
 
             "k8s-res=./resources"
 
