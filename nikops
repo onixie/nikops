@@ -27,6 +27,17 @@ execute_deploy() {
     nixops deploy $@
 }
 
+setup_ssh_key_auth() {
+    hosts=$(for node in $(nixops info --plain $@ | grep -v network | cut -f1)
+            do
+                printf "%s " $(nixops show-option $@ $node deployment.libvirtd.URI | sed -ne 's|^"qemu.*//\(.*\)/system"$|\1|p')
+            done)
+    for host in $hosts
+    do
+        ssh-copy-id $host -f
+    done
+}
+
 setup_overlay_network() {
     nodes=$(nixops info --plain $@ | grep -v network | cut -f1)
     hosts=$(for node in $nodes
@@ -37,9 +48,10 @@ setup_overlay_network() {
              do
                  printf "%s"  $(echo $(nixops show-option $@ $node networking.interfaces.enp0s2.ipv4.addresses.0.address) | tr -d '"')
                  printf "/%s" $(echo $(nixops show-option $@ $node networking.interfaces.enp0s2.ipv4.addresses.0.prefixLength))
-                 break;
+                 break
              done)
     subnet=$(python -c "import ipaddress;print ipaddress.ip_network(u'$subnet',strict=False).with_prefixlen")
+    myaddr=$(python -c "import ipaddress;print ipaddress.ip_network(u'$subnet',strict=False)[1]")
 
     self=$(hostname -I | cut -f1 -d ' ')
     peers=$(printf "%s %s" $self $(echo "$hosts" | sed -nE 's/[^ ]+@([^ ]+( |$))/\1/gp'))
@@ -49,6 +61,7 @@ setup_overlay_network() {
     for host in $self $hosts
     do
         script=$(cat <<EOF
+        sudo ovs-vsctl br-exists nikops-net && exit 0
         sudo ovs-vsctl add-br nikops-net -- set interface nikops-net mtu_request=1450
 
         i=0
@@ -58,6 +71,7 @@ setup_overlay_network() {
             then
                continue
             fi
+            echo Link peer \$peer by port vxlan\$i
 
             sudo ovs-vsctl add-port nikops-net vxlan\$i -- set interface vxlan\$i type=vxlan options:remote_ip=\$peer options:key=nikops-net
             i=\$((\$i+1))
@@ -71,8 +85,11 @@ EOF
 
         if echo "$host" | grep -q "$self"
         then
+            echo Setup ovs bridge and vxlan on local...
             eval "$script"
+            sudo ip addr add $myaddr dev nikops-net
         else
+            echo Setup ovs bridge and vxlan on $host...
             ssh -t $host "$script"
         fi
     done
@@ -80,18 +97,20 @@ EOF
 
 destroy_overlay_network() {
     self=$(hostname -I | cut -f1 -d ' ')
-    hosts=$(for machine in $(nixops info --plain $@ | grep -v network | cut -f1);
+    hosts=$(for machine in $(nixops info --plain $@ | grep -v network | cut -f1)
             do
                 printf "%s " $(nixops show-option $@ $machine deployment.libvirtd.URI | sed -ne 's|^"qemu.*//\(.*\)/system"$|\1|p')
             done)
     for host in $self $hosts
     do
-        script="sudo ovs-vsctl del-br nikops-net"
+        script="sudo ovs-vsctl br-exists nikops-net && sudo ovs-vsctl del-br nikops-net"
 
         if echo "$host" | grep -q "$self"
         then
+            echo Destroy ovs bridge on local...
             eval "$script"
         else
+            echo Destroy ovs bridge on $host...
             ssh -t $host "$script"
         fi
     done
@@ -109,10 +128,11 @@ case "$SUB_COMMAND" in
     create)
         generate_pki
         initialize_deploy $@ $DEFAULT_DEPLOYMENT_NAME
+        setup_ssh_key_auth $DEFAULT_DEPLOYMENT_NAME
         ;;
     deploy)
         generate_pki
-        initialize_deploy $@ $DEFAULT_DEPLOYMENT_NAME
+        initialize_deploy $DEFAULT_DEPLOYMENT_NAME
         execute_deploy $@ $DEFAULT_DEPLOYMENT_NAME
         ;;
     kubectl|k8s|kubernetes|cluster)
