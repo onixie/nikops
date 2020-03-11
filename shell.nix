@@ -4,11 +4,16 @@ let
         sha256 = "1ygvhl72mjwfgkag612q9b6nvh0k5dhdqsr1l84jmsjk001fqfa7";
     };
 
-    nixops          = builtins.fetchGit https://github.com/onixie/nixops;
+    nixops          = builtins.fetchGit {
+        url = https://github.com/onixie/nixops;
+        ref = "expose-privateipv4-to-machine-definition";
+        rev = "042ba74d43232e2f0792b25e7d20db9470215961";
+    };
     nixops-vbox     = builtins.fetchGit https://github.com/onixie/nixops-vbox;
     nixops-libvirtd = builtins.fetchGit {
         url = https://github.com/onixie/nixops-libvirtd;
         ref = "network-resource-support";
+        rev = "992b06a699faa2ae51f82ecab826db3ce5ec9887";
     };
 
     pkgs = import nixpkgs { config = {}; };

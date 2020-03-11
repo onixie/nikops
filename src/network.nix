@@ -4,7 +4,7 @@ with lib;
 
 let theProxy = import <k8s/proxy> ;
     theNetIF = if config.deployment.targetEnv == "virtualbox"
-               then "enp0s8"
+               then "enp0s3"
                else
                    if config.deployment.targetEnv == "libvirtd"
                    then "enp0s2"
@@ -18,10 +18,6 @@ in mkMerge
 
             # networking.usePredictableInterfaceNames = false; # work with virtualbox but need to reboot once
             # networking.defaultGateway = network.gateway; # not work for virtualbox
-            # networking.interfaces."${theNetIF}".ipv4.addresses = [ {
-            #     address = theNode.address;
-            #     prefixLength = toInt (elemAt (splitString "/" theNetwork.subnet) 1);
-            # } ];
 
             services.flannel.iface    = theNetIF;
 
@@ -33,6 +29,18 @@ in mkMerge
 
             networking.firewall.enable = false;
         }
+
+        (mkIf (theNetwork ? managed && theNetwork.managed == false)
+            {
+                networking.interfaces."${theNetIF}" = {
+                    ipv4.addresses = [ {
+                        address = theNode.address;
+                        prefixLength = toInt (elemAt (splitString "/" theNetwork.subnet) 1);
+                    } ];
+                    mtu = 1400;
+                };
+            }
+        )
 
         (mkIf (hasAttr "url" theProxy && theProxy.url != null)
             {

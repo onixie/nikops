@@ -1,6 +1,6 @@
 *~
 *#
 proxy.nix
-deployment.nix
+hypervisor.nix
 resources/pki/*
 .state.nixops*
