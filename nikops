@@ -1,28 +1,10 @@
 #! /usr/bin/env nix-shell
 #! nix-shell -i bash
 
-run_deploy() {
-    mkdir -p resources/pki
-
+generate_pki() {
     if ! [ -f resources/pki/ca.pem ]
-    then cat <<EOF | cfssl genkey -initca - | cfssljson -bare resources/pki/ca
-{
-  "CN"     : "Nikops Root CA",
-  "key"    : {
-    "algo" : "ecdsa",
-    "size" : 256
-  },
-  "names"  : [
-    {
-      "C"  : "",
-      "L"  : "",
-      "O"  : "",
-      "OU" : "",
-      "ST" : ""
-    }
-  ]
-}
-EOF
+    then
+        cat resources/pki/ca.json | cfssl genkey -initca - | cfssljson -bare resources/pki/ca
     fi
 
     CFSSL_API_TOKEN_LENGTH=32
@@ -33,11 +15,86 @@ EOF
         head -c $(($CFSSL_API_TOKEN_LENGTH / 2)) /dev/urandom | od -An -t x | tr -d ' ' > resources/pki/apitoken.secret
     fi
 
+}
+
+initialize_deploy() {
     if ! nixops info $@ 1>/dev/null 2>&1
     then nixops create . $@
     fi
+}
 
+execute_deploy() {
     nixops deploy $@
+}
+
+setup_overlay_network() {
+    nodes=$(nixops info --plain $@ | grep -v network | cut -f1)
+    hosts=$(for node in $nodes
+            do
+                printf "%s " $(nixops show-option $@ $node deployment.libvirtd.URI | sed -ne 's|^"qemu.*//\(.*\)/system"$|\1|p')
+            done)
+    subnet=$(for node in $nodes
+             do
+                 printf "%s"  $(echo $(nixops show-option $@ $node networking.interfaces.enp0s2.ipv4.addresses.0.address) | tr -d '"')
+                 printf "/%s" $(echo $(nixops show-option $@ $node networking.interfaces.enp0s2.ipv4.addresses.0.prefixLength))
+                 break;
+             done)
+    subnet=$(python -c "import ipaddress;print ipaddress.ip_network(u'$subnet',strict=False).with_prefixlen")
+
+    self=$(hostname -I | cut -f1 -d ' ')
+    peers=$(printf "%s %s" $self $(echo "$hosts" | sed -nE 's/[^ ]+@([^ ]+( |$))/\1/gp'))
+
+    echo "$subnet"
+
+    for host in $self $hosts
+    do
+        script=$(cat <<EOF
+        sudo ovs-vsctl add-br nikops-net -- set interface nikops-net mtu_request=1450
+
+        i=0
+        for peer in $peers
+        do
+            if echo "$host" | grep -q "\$peer"
+            then
+               continue
+            fi
+
+            sudo ovs-vsctl add-port nikops-net vxlan\$i -- set interface vxlan\$i type=vxlan options:remote_ip=\$peer options:key=nikops-net
+            i=\$((\$i+1))
+        done
+
+        sudo ip link set dev nikops-net up
+
+        sudo ip route add $subnet dev nikops-net
+EOF
+        )
+
+        if echo "$host" | grep -q "$self"
+        then
+            eval "$script"
+        else
+            ssh -t $host "$script"
+        fi
+    done
+}
+
+destroy_overlay_network() {
+    self=$(hostname -I | cut -f1 -d ' ')
+    hosts=$(for machine in $(nixops info --plain $@ | grep -v network | cut -f1);
+            do
+                printf "%s " $(nixops show-option $@ $machine deployment.libvirtd.URI | sed -ne 's|^"qemu.*//\(.*\)/system"$|\1|p')
+            done)
+    for host in $self $hosts
+    do
+        script="sudo ovs-vsctl del-br nikops-net"
+
+        if echo "$host" | grep -q "$self"
+        then
+            eval "$script"
+        else
+            ssh -t $host "$script"
+        fi
+    done
 }
 
 SUB_COMMAND=$1
@@ -49,13 +106,31 @@ DEFAULT_DEPLOYMENT_NAME=" -d nikops"
 fi
 
 case "$SUB_COMMAND" in
+    create)
+        generate_pki
+        initialize_deploy $@ $DEFAULT_DEPLOYMENT_NAME
+        ;;
     deploy)
-        run_deploy $@ $DEFAULT_DEPLOYMENT_NAME
+        generate_pki
+        initialize_deploy $@ $DEFAULT_DEPLOYMENT_NAME
+        execute_deploy $@ $DEFAULT_DEPLOYMENT_NAME
         ;;
     kubectl|k8s|kubernetes|cluster)
         MASTER_NODE=$(nixops ssh-for-each $DEFAULT_DEPLOYMENT_NAME -- 'which kubectl 1>/dev/null 2>&1 && printf "nikops> master name is %s" $(cat /etc/hostname)' 2>&1 \
                           | sed -ne 's/^.*> *nikops> master name is \(.*\)$/\1/p')
         nixops ssh $DEFAULT_DEPLOYMENT_NAME $MASTER_NODE kubectl --kubeconfig=/etc/kubernetes/cluster-admin.kubeconfig $@
+        ;;
+    overlay-network) #experimental
+        SUBSUB_COMMAND=$1
+        shift
+        case "$SUBSUB_COMMAND" in
+            deploy)
+                setup_overlay_network $@ $DEFAULT_DEPLOYMENT_NAME
+                ;;
+            destroy)
+                destroy_overlay_network $@ $DEFAULT_DEPLOYMENT_NAME
+                ;;
+        esac
         ;;
     *)
         nixops $SUB_COMMAND $DEFAULT_DEPLOYMENT_NAME $@
