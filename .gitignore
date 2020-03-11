@@ -3,4 +3,5 @@
 proxy.nix
 hypervisor.nix
 resources/pki/*
+!resources/pki/ca.json
 .state.nixops*
