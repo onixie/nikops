@@ -162,6 +162,10 @@ in
         listenClientUrls = ["https://${theNode.address}:2379"]; # dont mkForce because the default 127.0.0.1 is expected.
         name = theNode.name;
     };
+    systemd.services.etcd.serviceConfig = {
+        RestartSec = "5s";
+        Restart = "on-failure";
+    };
 
     services.kubernetes = {
         # dataDir = "/etc/kubernetes";
