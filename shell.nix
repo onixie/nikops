@@ -1,7 +1,7 @@
 let
     nixpkgs = builtins.fetchTarball {
-        url    = "https://nixos.org/channels/nixos-unstable/nixexprs.tar.xz";
-        sha256 = "1ygvhl72mjwfgkag612q9b6nvh0k5dhdqsr1l84jmsjk001fqfa7";
+        url = "https://github.com/NixOS/nixpkgs/archive/19.09.tar.gz";
+        sha256 = "0mhqhq21y5vrr1f30qd2bvydv4bbbslvyzclhw0kdxmkgg3z4c92";
     };
 
     nixops          = builtins.fetchGit {
