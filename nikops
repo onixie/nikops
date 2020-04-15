@@ -38,6 +38,17 @@ setup_ssh_key_auth() {
     done
 }
 
+clean_node_ssh_known_hosts() {
+    hosts=$(for node in $(nixops info --plain $@ | grep -v network | cut -f1)
+            do
+                printf "%s " $(nixops show-option $@ $node deployment.targetHost)
+            done)
+    for host in $hosts
+    do
+        ssh-keygen -R $host
+    done
+}
+
 setup_overlay_network() {
     nodes=$(nixops info --plain $@ | grep -v network | cut -f1)
     hosts=$(for node in $nodes
@@ -152,6 +163,9 @@ case "$SUB_COMMAND" in
                 ;;
         esac
         ;;
+    destroy|delete)
+        clean_node_ssh_known_hosts
+	;&
     *)
         nixops $SUB_COMMAND $DEFAULT_DEPLOYMENT_NAME $@
         ;;
