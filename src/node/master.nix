@@ -58,18 +58,32 @@ in
     systemd.services.cfssl.preStart = mkBefore ''
       set -e
 
+      updateKey() {
+        test -f "$3" && chmod u+w "$3"
+        cp -upd "/run/keys/$2" "$3" && chown cfssl:cfssl "$3" && chmod $1 "$3"
+      }
+
       # Replacement for genCfsslCACert
-      ln -fs /run/keys/cfssl-ca     ${top.pki.caCertPathPrefix}.pem
-      ln -fs /run/keys/cfssl-ca-key ${top.pki.caCertPathPrefix}-key.pem
+      #ln -fs /run/keys/cfssl-ca ${top.pki.caCertPathPrefix}.pem
+      updateKey 0444    cfssl-ca ${top.pki.caCertPathPrefix}.pem
+
+      #ln -fs /run/keys/cfssl-ca-key ${top.pki.caCertPathPrefix}-key.pem
+      updateKey 0400    cfssl-ca-key ${top.pki.caCertPathPrefix}-key.pem
 
       # Replacement for genCfsslAPIToken
-      ln -fs /run/keys/cfssl-api-token ${cfsslAPITokenPath}
+      #ln -fs /run/keys/cfssl-api-token ${cfsslAPITokenPath}
+      updateKey 0400    cfssl-api-token ${cfsslAPITokenPath}
 
     '';
 
+    systemd.services.cfssl.serviceConfig = {
+      StateDirectory = mkForce "cfssl"; # checkme: should fix in upstream. Value to StateDirectory must be relative path.
+      StateDirectoryMode = mkForce 711;
+    };
+
     systemd.services.kube-certmgr-bootstrap.script = mkForce ''
-      cp -pd /run/keys/cfssl-ca        ${top.secretsPath}/ca.pem
-      ln -fs /run/keys/cfssl-api-token ${top.secretsPath}/apitoken.secret
+      ln -fs ${top.pki.caCertPathPrefix}.pem ${top.secretsPath}/ca.pem
+      ln -fs ${cfsslAPITokenPath} ${top.secretsPath}/apitoken.secret
     '';
 
     systemd.services.etcd-runtime-reconfigure = {

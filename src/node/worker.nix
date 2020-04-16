@@ -23,8 +23,13 @@ in
     systemd.services.cfssl.enable = false; # checkme: nixos/kubernetes should disable this on worker
 
     systemd.services.kube-certmgr-bootstrap.script = mkForce ''
-      cp -pd /run/keys/cfssl-ca        ${top.secretsPath}/ca.pem
-      ln -fs /run/keys/cfssl-api-token ${top.secretsPath}/apitoken.secret
+      test -f ${top.secretsPath}/ca.pem && chmod u+w ${top.secretsPath}/ca.pem
+      cp -upd /run/keys/cfssl-ca        ${top.secretsPath}/ca.pem
+      chown root:root ${top.secretsPath}/ca.pem && chmod 0444 ${top.secretsPath}/ca.pem
+
+      test -f ${top.secretsPath}/apitoken.secret && chmod u+w ${top.secretsPath}/apitoken.secret
+      cp -upd /run/keys/cfssl-api-token ${top.secretsPath}/apitoken.secret
+      chown root:root ${top.secretsPath}/apitoken.secret && chmod 0400 ${top.secretsPath}/apitoken.secret
     '';
 
     services.kubernetes = {
