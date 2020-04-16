@@ -41,11 +41,11 @@ setup_ssh_key_auth() {
 clean_node_ssh_known_hosts() {
     hosts=$(for node in $(nixops info --plain $@ | grep -v network | cut -f1)
             do
-                printf "%s " $(nixops show-option $@ $node deployment.targetHost)
+                printf "%s " $(nixops show-option $@ $node deployment.targetHost | tr -d '"')
             done)
     for host in $hosts
     do
-        ssh-keygen -R $host
+        ssh-keygen -R $host -f ~/.ssh/known_hosts
     done
 }
 
@@ -165,7 +165,7 @@ case "$SUB_COMMAND" in
         ;;
     destroy|delete)
         clean_node_ssh_known_hosts
-	;&
+        ;&
     *)
         nixops $SUB_COMMAND $DEFAULT_DEPLOYMENT_NAME $@
         ;;
