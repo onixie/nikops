@@ -4,7 +4,10 @@ with import <nixpkgs/lib> ;
 
 let theName = theCluster.name or "kubernetes";
 
-    theNetwork = theCluster.network;
+    theNetwork = theCluster.network // {
+      name = theCluster.network.name or "${theName}-network";
+    };
+
     isManaged = n: !(n ? managed) || n.managed != false;
 
     theNodes = mapAttrs (k: n: n // {
@@ -35,7 +38,7 @@ let theName = theCluster.name or "kubernetes";
                     headless   = true;
                     memorySize = 2048;
                     vcpu       = 2;
-                    networks   = let net1 = if isManaged theNetwork then [ resources."${theHypervisor}Networks".network ] else [];
+                    networks   = let net1 = if isManaged theNetwork then [ resources."${theHypervisor}Networks"."${theNetwork.name}" ] else [];
                                      net2 = if isVirtualBox theHypervisor then [ { type = "nat"; } ] else [];
                                  in net1++net2;
                 };
@@ -52,7 +55,7 @@ let theName = theCluster.name or "kubernetes";
 
 
     theResources = if isManaged theNetwork then {
-        resources."${theHypervisor}Networks".network = { resources, ...}: {
+        resources."${theHypervisor}Networks"."${theNetwork.name}" = { resources, ...}: {
             type = if isVirtualBox theHypervisor then "hostonly" else "nat";
             cidrBlock = theNetwork.subnet;
             staticIPs = mapAttrs' (_: theNode: nameValuePair theNode.address resources.machines."${theNode.name}") theNodes;
@@ -67,6 +70,7 @@ theResources // mapAttrs (_: theNode:
                 (import theNode.nix   theName theEndpoint theNode (attrValues theMasterNodes))
                 (import <k8s/network> theName theEndpoint theNode (attrValues theNodes) theNetwork)
                 (import <k8s/system>  (theDeployment theNode resources))
+                (theNode.extraConfig or (_: {}))
             ] ++ (map (p: import "${<k8s-addons>}/${p}") (attrNames (builtins.readDir <k8s-addons>)))
         ))
     )
