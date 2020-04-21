@@ -25,7 +25,13 @@ generate_pki() {
     fi
 }
 
+NIKOPS_DIR=$(dirname $0)
+
 initialize_deploy() {
+    if ! [ -f ./default.nix ]; then
+        cp $NIKOPS_DIR/default.nix ./
+    fi
+
     if ! nixops info $@ 1>/dev/null 2>&1; then
         nixops create . $@
     fi

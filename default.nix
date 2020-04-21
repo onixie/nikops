@@ -6,13 +6,13 @@ import <k8s/cluster> {
         dns     = [ "8.8.8.8" "8.8.4.4" ];
     };
 
-    node0 = {
-        roles = [ "loadbalancer" ];
-        address = "192.168.56.10";
-    };
+    # node0 = {
+    #     roles = [ "loadbalancer" ];
+    #     address = "192.168.56.10";
+    # };
 
     node1 = {
-        roles = [ "master" "worker" ];
+        roles = [ "master" ];
         address = "192.168.56.11";
     };
 
@@ -20,19 +20,4 @@ import <k8s/cluster> {
         roles = [ "worker" ];
         address = "192.168.56.12";
     };
-
-    node3 = {
-        roles = [ "master" ];
-        address = "192.168.56.13";
-    };
-
-    # node4 = {
-    #     roles = [ "master" "worker" ];
-    #     address = "192.168.56.14";
-    # };
-
-    # node5 = {
-    #     roles = [ "master" "worker" ];
-    #     address = "192.168.56.15";
-    # };
 }
