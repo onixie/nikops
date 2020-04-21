@@ -6,14 +6,14 @@ in
 {
     deployment.keys = {
         cfssl-ca = {
-            keyFile     = <k8s-res/pki/ca.pem> ;
+            keyFile     = <k8s-pki/ca.pem> ;
             user        = "root";
             group       = "root";
             permissions = "0444";
         };
 
         cfssl-api-token = {
-            keyFile     = <k8s-res/pki/apitoken.secret> ;
+            keyFile     = <k8s-pki/apitoken.secret> ;
             user        = "root";
             group       = "root";
             permissions = "0400";

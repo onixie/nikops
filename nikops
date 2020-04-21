@@ -1,25 +1,33 @@
 #! /usr/bin/env nix-shell
 #! nix-shell -i bash ./shell.nix
 
+K8S_RES=$(nix-instantiate --eval -E '<k8s-res>')
+K8S_PKI=$(nix-instantiate --eval -E '<k8s-pki>')
+
+readCASpec() {
+    if [ -f $K8S_PKI/ca.json ]; then
+        cat $K8S_PKI/ca.json
+    else
+        cat $K8S_RES/pki/ca.json
+    fi
+}
+
 generate_pki() {
-    if ! [ -f resources/pki/ca.pem ]
-    then
-        cat resources/pki/ca.json | cfssl genkey -initca - | cfssljson -bare resources/pki/ca
+    if ! [ -f $K8S_PKI/ca.pem ]; then
+        readCASpec | cfssl genkey -initca - | cfssljson -bare $K8S_PKI/ca
     fi
 
     CFSSL_API_TOKEN_LENGTH=32
 
-    if ! [ -f resources/pki/apitoken.secret ]
-    then
+    if ! [ -f $K8S_PKI/apitoken.secret ]; then
         echo Generate API Token for CA interaction
-        head -c $(($CFSSL_API_TOKEN_LENGTH / 2)) /dev/urandom | od -An -t x | tr -d ' ' > resources/pki/apitoken.secret
+        head -c $(($CFSSL_API_TOKEN_LENGTH / 2)) /dev/urandom | od -An -t x | tr -d ' ' > $K8S_PKI/apitoken.secret
     fi
-
 }
 
 initialize_deploy() {
-    if ! nixops info $@ 1>/dev/null 2>&1
-    then nixops create . $@
+    if ! nixops info $@ 1>/dev/null 2>&1; then
+        nixops create . $@
     fi
 }
 
@@ -28,35 +36,30 @@ execute_deploy() {
 }
 
 setup_ssh_key_auth() {
-    hosts=$(for node in $(nixops info --plain $@ | grep -v network | cut -f1)
-            do
+    hosts=$(for node in $(nixops info --plain $@ | grep -v network | cut -f1); do
                 printf "%s " $(nixops show-option $@ $node deployment.libvirtd.URI | sed -ne 's|^"qemu.*//\(.*\)/system"$|\1|p')
             done)
-    for host in $hosts
-    do
+
+    for host in $hosts; do
         ssh-copy-id $host -f
     done
 }
 
 clean_node_ssh_known_hosts() {
-    hosts=$(for node in $(nixops info --plain $@ | grep -v network | cut -f1)
-            do
+    hosts=$(for node in $(nixops info --plain $@ | grep -v network | cut -f1); do
                 printf "%s " $(nixops show-option $@ $node deployment.targetHost | tr -d '"')
             done)
-    for host in $hosts
-    do
+    for host in $hosts; do
         ssh-keygen -R $host -f ~/.ssh/known_hosts
     done
 }
 
 setup_overlay_network() {
     nodes=$(nixops info --plain $@ | grep -v network | cut -f1)
-    hosts=$(for node in $nodes
-            do
+    hosts=$(for node in $nodes; do
                 printf "%s " $(nixops show-option $@ $node deployment.libvirtd.URI | sed -ne 's|^"qemu.*//\(.*\)/system"$|\1|p')
             done)
-    subnet=$(for node in $nodes
-             do
+    subnet=$(for node in $nodes; do
                  printf "%s"  $(echo $(nixops show-option $@ $node networking.interfaces.enp0s2.ipv4.addresses.0.address) | tr -d '"')
                  printf "/%s" $(echo $(nixops show-option $@ $node networking.interfaces.enp0s2.ipv4.addresses.0.prefixLength))
                  break
@@ -69,8 +72,7 @@ setup_overlay_network() {
 
     echo "$subnet"
 
-    for host in $self $hosts
-    do
+    for host in $self $hosts; do
         script=$(cat <<EOF
         sudo ovs-vsctl br-exists nikops-net && exit 0
         sudo ovs-vsctl add-br nikops-net -- set interface nikops-net mtu_request=1450
@@ -94,8 +96,7 @@ setup_overlay_network() {
 EOF
         )
 
-        if echo "$host" | grep -q "$self"
-        then
+        if echo "$host" | grep -q "$self"; then
             echo Setup ovs bridge and vxlan on local...
             eval "$script"
             sudo ip addr add $myaddr dev nikops-net
@@ -108,16 +109,13 @@ EOF
 
 destroy_overlay_network() {
     self=$(hostname -I | cut -f1 -d ' ')
-    hosts=$(for machine in $(nixops info --plain $@ | grep -v network | cut -f1)
-            do
+    hosts=$(for machine in $(nixops info --plain $@ | grep -v network | cut -f1); do
                 printf "%s " $(nixops show-option $@ $machine deployment.libvirtd.URI | sed -ne 's|^"qemu.*//\(.*\)/system"$|\1|p')
             done)
-    for host in $self $hosts
-    do
+    for host in $self $hosts; do
         script="sudo ovs-vsctl br-exists nikops-net && sudo ovs-vsctl del-br nikops-net"
 
-        if echo "$host" | grep -q "$self"
-        then
+        if echo "$host" | grep -q "$self"; then
             echo Destroy ovs bridge on local...
             eval "$script"
         else
@@ -130,9 +128,8 @@ destroy_overlay_network() {
 SUB_COMMAND=$1
 shift
 
-if ! echo "$@" | egrep "^.*(-d |--deploy).*$"
-then
-DEFAULT_DEPLOYMENT_NAME=" -d nikops"
+if ! echo "$@" | egrep "^.*(-d |--deploy).*$"; then
+    DEFAULT_DEPLOYMENT_NAME=" -d nikops"
 fi
 
 case "$SUB_COMMAND" in

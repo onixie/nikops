@@ -29,19 +29,19 @@ in
 
     deployment.keys = {
         cfssl-ca = {
-            keyFile     = <k8s-res/pki/ca.pem> ;
+            keyFile     = <k8s-pki/ca.pem> ;
             user        = "cfssl";
             group       = "cfssl";
             permissions = "0444";
         };
         cfssl-ca-key = {
-            keyFile     = <k8s-res/pki/ca-key.pem> ;
+            keyFile     = <k8s-pki/ca-key.pem> ;
             user        = "cfssl";
             group       = "cfssl";
             permissions = "0400";
         };
         cfssl-api-token = {
-            keyFile     = <k8s-res/pki/apitoken.secret> ;
+            keyFile     = <k8s-pki/apitoken.secret> ;
             user        = "cfssl";
             group       = "cfssl";
             permissions = "0400";

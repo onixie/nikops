@@ -21,6 +21,10 @@ let
     lib  = pkgs.lib;
 
     addSrc = lib.concatMapStringsSep ":" (n: "k8s/${n}=${./src/. + "/${n}.nix"}");
+
+    dplDir=".deploy";
+
+    pkiDir="${dplDir}/pki";
 in
 
 pkgs.mkShell {
@@ -35,7 +39,7 @@ pkgs.mkShell {
     ];
 
     shellHook = ''
-    export NIXOPS_STATE="./.state.nixops"
+    export NIXOPS_STATE="${dplDir}/state.nixops"
     export NIX_PATH="${lib.concatStringsSep ":"
         [
             "nixpkgs=${nixpkgs}"
@@ -50,11 +54,16 @@ pkgs.mkShell {
              then "k8s/hypervisor=./hypervisor.nix"
              else "k8s/hypervisor=")
 
-            "k8s-res=./resources"
+            "k8s-res=${./. + "/resources"}"
 
             "k8s-addons=${./src/. + "/addons"}"
 
+            "k8s-pki=${pkiDir}"
+
             "."
         ]}"
+
+    mkdir -p ${dplDir}
+    mkdir -p ${pkiDir}
   '';
 }
