@@ -1,0 +1,11 @@
+#! /bin/sh -x
+
+if ! [ -d $HOME/.nikops ];then
+    git clone --depth 1 https://gitlab.com/onixie/nikops.git $HOME/.nikops
+fi
+
+cat <<'EOF' > /etc/profile.d/nikops.sh
+export PATH="$PATH:$HOME/.nikops"
+EOF
+
+. /etc/profile.d/nikops.sh
