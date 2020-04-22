@@ -1,5 +1,6 @@
 *~
 *#
+default.nix
 proxy.nix
 hypervisor.nix
 resources/pki/*
