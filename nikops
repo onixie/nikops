@@ -41,12 +41,15 @@ execute_deploy() {
     nixops deploy $@
 }
 
-setup_ssh_key_auth() {
+get_libvirt_hosts() {
     hosts=$(for node in $(nixops info --plain $@ | grep -v network | cut -f1); do
                 printf "%s " $(nixops show-option $@ $node deployment.libvirtd.URI | sed -ne 's|^"qemu.*//\(.*\)/system"$|\1|p')
             done)
+    echo "$hosts" | tr " " "\n" | sort -u | tr "\n" " "
+}
 
-    for host in $hosts; do
+setup_ssh_key_auth() {
+    for host in $(get_libvirt_hosts $@); do
         ssh-copy-id $host -f
     done
 }
@@ -61,11 +64,7 @@ clean_node_ssh_known_hosts() {
 }
 
 setup_overlay_network() {
-    nodes=$(nixops info --plain $@ | grep -v network | cut -f1)
-    hosts=$(for node in $nodes; do
-                printf "%s " $(nixops show-option $@ $node deployment.libvirtd.URI | sed -ne 's|^"qemu.*//\(.*\)/system"$|\1|p')
-            done)
-    subnet=$(for node in $nodes; do
+    subnet=$(for node in $(nixops info --plain $@ | grep -v network | cut -f1); do
                  printf "%s"  $(echo $(nixops show-option $@ $node networking.interfaces.enp0s2.ipv4.addresses.0.address) | tr -d '"')
                  printf "/%s" $(echo $(nixops show-option $@ $node networking.interfaces.enp0s2.ipv4.addresses.0.prefixLength))
                  break
@@ -74,7 +73,8 @@ setup_overlay_network() {
     myaddr=$(python -c "import ipaddress;print ipaddress.ip_network(u'$subnet',strict=False)[1]")
 
     self=$(hostname -I | cut -f1 -d ' ')
-    peers=$(printf "%s %s" $self $(echo "$hosts" | sed -nE 's/[^ ]+@([^ ]+( |$))/\1/gp'))
+    hosts=$(get_libvirt_hosts $@)
+    peers=$(echo "$self $hosts" | sed -nE 's/[^ ]+@([^ ]+( |$))/\1/gp' | tr ' ' '\n' | sort -u | tr '\n' ' ')
 
     echo "$subnet"
 
@@ -103,6 +103,8 @@ EOF
         )
 
         if echo "$host" | grep -q "$self"; then
+            sudo ovs-vsctl br-exists nikops-net && continue
+
             echo Setup ovs bridge and vxlan on local...
             eval "$script"
             sudo ip addr add $myaddr dev nikops-net
@@ -115,19 +117,29 @@ EOF
 
 destroy_overlay_network() {
     self=$(hostname -I | cut -f1 -d ' ')
-    hosts=$(for machine in $(nixops info --plain $@ | grep -v network | cut -f1); do
-                printf "%s " $(nixops show-option $@ $machine deployment.libvirtd.URI | sed -ne 's|^"qemu.*//\(.*\)/system"$|\1|p')
-            done)
+    hosts=$(get_libvirt_hosts $@)
     for host in $self $hosts; do
         script="sudo ovs-vsctl br-exists nikops-net && sudo ovs-vsctl del-br nikops-net"
 
         if echo "$host" | grep -q "$self"; then
+            sudo ovs-vsctl br-exists nikops-net || continue
+
             echo Destroy ovs bridge on local...
             eval "$script"
         else
             echo Destroy ovs bridge on $host...
             ssh -t $host "$script"
         fi
+    done
+}
+
+show_overlay_network() {
+    hosts=$(get_libvirt_hosts $@)
+    for host in $hosts; do
+        script="sudo ovs-vsctl show"
+
+        echo $host...
+        ssh -t $host "$script"
     done
 }
 
@@ -163,6 +175,9 @@ case "$SUB_COMMAND" in
                 ;;
             destroy)
                 destroy_overlay_network $@ $DEFAULT_DEPLOYMENT_NAME
+                ;;
+            info)
+                show_overlay_network $@ $DEFAULT_DEPLOYMENT_NAME
                 ;;
         esac
         ;;
