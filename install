@@ -1,11 +1,21 @@
-#! /bin/sh -x
+#! /bin/sh -
 
-if ! [ -d $HOME/.nikops ];then
-    git clone --depth 1 https://gitlab.com/onixie/nikops.git $HOME/.nikops
-fi
+set -e
 
-cat <<'EOF' > /etc/profile.d/nikops.sh
+NIKOPS_DIR=$HOME/.nikops
+NIKOPS_URL=https://gitlab.com/onixie/nikops.git
+NIKOPS_ENV=/etc/profile.d/nikops.sh
+
+echo "Install nikops"
+test -d $NIKOPS_DIR && rm -rf $NIKOPS_DIR
+git clone --depth 1 $NIKOPS_URL $NIKOPS_DIR
+
+echo "Add $NIKOPS_DIR in search PATH"
+sudo tee $NIKOPS_ENV <<'EOF'
 export PATH="$PATH:$HOME/.nikops"
 EOF
 
-. /etc/profile.d/nikops.sh
+# Update PATH instantly
+. $NIXOPS_ENV
+
+echo "Done."
