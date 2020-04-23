@@ -15,9 +15,7 @@ in mkMerge
             networking.hostName    = theNode.name;
             networking.privateIPv4 = mkForce theNode.address; # bug? nixops should respect this configuration.
             deployment.targetHost  = theNode.address;
-
             # networking.usePredictableInterfaceNames = false; # work with virtualbox but need to reboot once
-            # networking.defaultGateway = network.gateway; # not work for virtualbox
 
             services.flannel.iface    = theNetIF;
 
@@ -39,6 +37,7 @@ in mkMerge
                     } ];
                     mtu = 1400;
                 };
+                networking.defaultGateway = theNetwork.gateway;
             }
         )
 
