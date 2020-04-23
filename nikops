@@ -82,6 +82,7 @@ setup_overlay_network() {
         script=$(cat <<EOF
         sudo ovs-vsctl br-exists nikops-net && exit 0
         sudo ovs-vsctl add-br nikops-net -- set interface nikops-net mtu_request=1450
+        sudo ovs-vsctl set bridge nikops-net stp_enable=true
 
         i=0
         for peer in $peers
