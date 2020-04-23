@@ -109,6 +109,11 @@ EOF
             echo Setup ovs bridge and vxlan on local...
             eval "$script"
             sudo ip addr add $myaddr dev nikops-net
+
+	    read -p "Enter physical interface as NAT gateway: " nikops_net_gw
+	    sudo iptables -t nat -A POSTROUTING -o $nikops_net_gw -j MASQUERADE
+	    sudo iptables -A FORWARD -i nikops-net -j ACCEPT
+	    sudo iptables -A FORWARD -i nikops-net -o $nikops_net_gw -m state --state RELATED,ESTABLISHED -j ACCEPT
         else
             echo Setup ovs bridge and vxlan on $host...
             ssh -t $host "$script"
