@@ -35,7 +35,7 @@ in mkMerge
                         address = theNode.address;
                         prefixLength = toInt (elemAt (splitString "/" theNetwork.subnet) 1);
                     } ];
-                    mtu = 1400;
+                    mtu = 1500;
                 };
                 networking.defaultGateway = theNetwork.gateway;
             }
