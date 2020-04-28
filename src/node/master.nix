@@ -198,6 +198,13 @@ in
             enableAdmissionPlugins = enableAdmissionPlugins.default ++ ["PodPreset" "PodSecurityPolicy"];
             runtimeConfig = runtimeConfig.default + ",settings.k8s.io/v1alpha1=true";
             allowPrivileged = true;
+            extraOpts = ''
+              --requestheader-client-ca-file=${top.secretsPath}/ca.pem \
+              --requestheader-extra-headers-prefix=X-Remote-Extra- \
+              --requestheader-group-headers=X-Remote-Group \
+              --requestheader-username-headers=X-Remote-User \
+              --requestheader-allowed-names=""
+            '';
         };
 
         apiserverAddress = mkForce "https://${theNode.address}:${toString top.apiserver.securePort}"; # bugs in nixos/kubernetes, port is missing if use advertise
@@ -217,8 +224,21 @@ in
             apiserver-restricted-crb = importJSON <k8s-res/clusterrolebindings/restricted.json> ;
         };
 
-        addonManager.addons = with top.addons; {
-            coredns-cm.data.Corefile = ".:${toString 10053} {
+        addonManager.addons.coredns-cm = with top.addons; mkForce {
+        apiVersion = "v1";
+        kind = "ConfigMap";
+        metadata = {
+          labels = {
+            "addonmanager.kubernetes.io/mode" = dns.reconcileMode;
+            k8s-app = "kube-dns";
+            "kubernetes.io/cluster-service" = "true";
+          };
+          name = "coredns";
+          namespace = "kube-system";
+        };
+        data = {
+          Corefile = ''
+          .:${toString 10053} {
             errors
             health :${toString 10054}
             kubernetes ${dns.clusterDomain} in-addr.arpa ip6.arpa {
@@ -236,7 +256,9 @@ in
             loop
             reload
             loadbalance
-            }";
+          }
+          '';
         };
+      };
     };
 }
