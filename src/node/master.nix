@@ -46,6 +46,18 @@ in
             group       = "cfssl";
             permissions = "0400";
         };
+        kubernetes-sa-signer = {
+            keyFile     = <k8s-pki/sa.pem> ;
+            user        = "kubernetes";
+            group       = "nogroup";
+            permissions = "0444";
+        };
+        kubernetes-sa-signer-key = {
+            keyFile     = <k8s-pki/sa-key.pem> ;
+            user        = "kubernetes";
+            group       = "nogroup";
+            permissions = "0400";
+        };
     };
 
     # services.cfssl = {
@@ -82,8 +94,17 @@ in
     };
 
     systemd.services.kube-certmgr-bootstrap.script = mkForce ''
+      set -e
+
       ln -fs ${top.pki.caCertPathPrefix}.pem ${top.secretsPath}/ca.pem
       ln -fs ${cfsslAPITokenPath} ${top.secretsPath}/apitoken.secret
+
+      updateKey() {
+        test -f "$3" && chmod u+w "$3"
+        cp -upd "/run/keys/$2" "$3" && chown kubernetes:nogroup "$3" && chmod $1 "$3"
+      }
+      updateKey 0444 kubernetes-sa-signer     ${top.secretsPath}/service-account.pem
+      updateKey 0400 kubernetes-sa-signer-key ${top.secretsPath}/service-account-key.pem
     '';
 
     systemd.services.etcd-runtime-reconfigure = {
@@ -189,6 +210,7 @@ in
             genCfsslAPIToken = false;
             # caCertPathPrefix = "${<k8s-res/pki>}/ca";
             pkiTrustOnBootstrap = false;
+            certs.serviceAccount = null;
         };
 
         roles = [ "master" ] ++ (if elem "worker" theNode.roles then [ "node" ] else []);
@@ -204,6 +226,20 @@ in
               --requestheader-group-headers=X-Remote-Group \
               --requestheader-username-headers=X-Remote-User \
               --requestheader-allowed-names=""
+            '';
+            serviceAccountKeyFile = "${top.secretsPath}/service-account.pem";
+        };
+        controllerManager = let kc = "${top.lib.mkKubeConfig "kube-controller-manager" top.controllerManager.kubeconfig}"; in {
+            serviceAccountKeyFile = "${top.secretsPath}/service-account-key.pem";
+            extraOpts = ''
+              --authentication-kubeconfig=${kc} \
+              --authorization-kubeconfig=${kc} 
+            '';
+        };
+        scheduler = let kc = "${top.lib.mkKubeConfig "kube-scheduler" top.scheduler.kubeconfig}"; in {
+            extraOpts = ''
+              --authentication-kubeconfig=${kc} \
+              --authorization-kubeconfig=${kc} 
             '';
         };
 

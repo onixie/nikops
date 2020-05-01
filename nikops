@@ -4,17 +4,17 @@
 K8S_RES=$(nix-instantiate --eval -E '<k8s-res>')
 K8S_PKI=$(nix-instantiate --eval -E '<k8s-pki>')
 
-readCASpec() {
-    if [ -f $K8S_PKI/ca.json ]; then
-        cat $K8S_PKI/ca.json
+cert_spec() {
+    if [ -f $K8S_PKI/$1 ]; then
+        echo $K8S_PKI/$1
     else
-        cat $K8S_RES/pki/ca.json
+        echo $K8S_RES/pki/$1
     fi
 }
 
 generate_pki() {
     if ! [ -f $K8S_PKI/ca.pem ]; then
-        readCASpec | cfssl genkey -initca - | cfssljson -bare $K8S_PKI/ca
+        cat $(cert_spec ca.json) | cfssl genkey -initca - | cfssljson -bare $K8S_PKI/ca
     fi
 
     CFSSL_API_TOKEN_LENGTH=32
@@ -22,6 +22,10 @@ generate_pki() {
     if ! [ -f $K8S_PKI/apitoken.secret ]; then
         echo Generate API Token for CA interaction
         head -c $(($CFSSL_API_TOKEN_LENGTH / 2)) /dev/urandom | od -An -t x | tr -d ' ' > $K8S_PKI/apitoken.secret
+    fi
+    
+    if ! [ -f $K8S_PKI/sa.pem ]; then
+        cat $(cert_spec sa.json) | cfssl gencert -ca=$K8S_PKI/ca.pem -ca-key=$K8S_PKI/ca-key.pem -config=$(cert_spec ca-config.json) -profile=sa - | cfssljson -bare $K8S_PKI/sa
     fi
 }
 
