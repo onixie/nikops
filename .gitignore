@@ -5,6 +5,8 @@ proxy.nix
 hypervisor.nix
 resources/pki/*
 !resources/pki/ca.json
+!resources/pki/sa.json
+!resources/pki/ca-config.json
 .deploy/pki*
 !.deploy/pki/ca.json
 .deploy/state.nixops

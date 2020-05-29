@@ -1,0 +1,8 @@
+{
+    "CN": "system:service-account-signer",
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [ {} ]
+}
