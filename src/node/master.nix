@@ -220,7 +220,7 @@ in
             enableAdmissionPlugins = enableAdmissionPlugins.default ++ ["PodPreset" "PodSecurityPolicy"];
             runtimeConfig = runtimeConfig.default + ",settings.k8s.io/v1alpha1=true";
             allowPrivileged = true;
-            extraOpts = ''
+            extraOpts = mkDefault ''
               --requestheader-client-ca-file=${top.secretsPath}/ca.pem \
               --requestheader-extra-headers-prefix=X-Remote-Extra- \
               --requestheader-group-headers=X-Remote-Group \
@@ -231,13 +231,13 @@ in
         };
         controllerManager = let kc = "${top.lib.mkKubeConfig "kube-controller-manager" top.controllerManager.kubeconfig}"; in {
             serviceAccountKeyFile = "${top.secretsPath}/service-account-key.pem";
-            extraOpts = ''
+            extraOpts = mkDefault ''
               --authentication-kubeconfig=${kc} \
               --authorization-kubeconfig=${kc} 
             '';
         };
         scheduler = let kc = "${top.lib.mkKubeConfig "kube-scheduler" top.scheduler.kubeconfig}"; in {
-            extraOpts = ''
+            extraOpts = mkDefault ''
               --authentication-kubeconfig=${kc} \
               --authorization-kubeconfig=${kc} 
             '';
