@@ -22,9 +22,12 @@ let
 
     addSrc = lib.concatMapStringsSep ":" (n: "k8s/${n}=${./src/. + "/${n}.nix"}");
 
+    curDir=with builtins; toPath (getEnv "PWD")
+
     dplDir=".deploy";
 
     pkiDir="${dplDir}/pki";
+
 in
 
 pkgs.mkShell {
@@ -46,11 +49,11 @@ pkgs.mkShell {
 
             (addSrc [ "cluster" "network" "node/master" "node/worker" "node/loadbalancer" "system" ])
 
-            (if builtins.pathExists ./proxy.nix
+            (if builtins.pathExists (curDir + "proxy.nix")
              then "k8s/proxy=./proxy.nix"
              else "k8s/proxy=")
 
-            (if builtins.pathExists ./hypervisor.nix
+            (if builtins.pathExists (curDir + "hypervisor.nix")
              then "k8s/hypervisor=./hypervisor.nix"
              else "k8s/hypervisor=")
 
