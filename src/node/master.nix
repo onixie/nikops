@@ -132,9 +132,10 @@ in
 
         for ma in $MEMBERS_ADD; do
             if [[ "$ma" == "${theNode.name}" ]]; then
-                ${pkgs.etcd}/bin/etcdctl member add $ma --peer-urls="$(printf "${members}" | grep $ma | cut -f2 -d',')"
+                systemctl stop etcd
+                ${pkgs.etcd}/bin/etcdctl member add $ma --peer-urls="$(printf "${members}" | grep $ma | cut -f2 -d',')" > /run/kubernetes/etcd.env
                 rm "${config.services.etcd.dataDir}/member" -rf
-                systemctl restart etcd
+                systemctl start etcd
             fi
         done
         '';
@@ -198,8 +199,9 @@ in
         name = theNode.name;
     };
     systemd.services.etcd.serviceConfig = {
-        RestartSec = "5s";
-        Restart = "on-failure";
+        EnvironmentFile = "-/run/kubernetes/etcd.env";
+        #RestartSec = "5s";
+        #Restart = "on-failure";
     };
 
     services.kubernetes = {
