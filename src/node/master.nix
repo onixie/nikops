@@ -5,7 +5,7 @@ with lib;
 let top = config.services.kubernetes;
     cfsslAPITokenBaseName = "apitoken.secret";
     cfsslAPITokenPath = "${config.services.cfssl.dataDir}/${cfsslAPITokenBaseName}";
-    etcdEnvFile = "/run/kubernetes/etcd.env";
+    etcdEnvFile = "/etc/etcd/override.env";
 in
 {
     environment = {
@@ -204,6 +204,7 @@ in
     systemd.services.etcd= {
       after = mkForce [ "certmgr.service" ];
       serviceConfig = {
+        ConfigurationDirectory = "etcd";
         EnvironmentFile = "-${etcdEnvFile}";
         ExecStartPost = pkgs.writeScript "post-etcd-bootstrap" ''
             #!${pkgs.stdenv.shell}
