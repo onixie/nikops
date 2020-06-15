@@ -108,10 +108,17 @@ in
       updateKey 0400 kubernetes-sa-signer-key ${top.secretsPath}/service-account-key.pem
     '';
 
+    systemd.paths.etcd = {
+      wantedBy = [ "etcd-runtime-reconfigure.service" ];
+      pathConfig = {
+        PathExists = "${top.secretsPath}/etcd-key.pem";
+        Unit = "etcd-runtime-reconfigure.service";
+      };
+    };
     systemd.services.etcd-runtime-reconfigure = {
         description = "Etcd auto runtime reconfiguration";
         wantedBy = [ "etcd.service" ];
-        after = [ "etcd.service" ];
+        before = [ "etcd.service" ];
         environment = {
             ETCDCTL_API    = "3";
             ETCDCTL_CACERT = "${top.secretsPath}/ca.pem";
@@ -133,18 +140,23 @@ in
 
         for ma in $MEMBERS_ADD; do
             if [[ "$ma" = "${theNode.name}" ]]; then
-                systemctl stop etcd
+                etcd_status=$(systemctl is-active etcd.service)
+                if [ "$etcd_status" = "active" ]; then
+                   systemctl stop etcd
+                fi
+
                 if ${pkgs.etcd}/bin/etcdctl member add $ma --peer-urls="$(printf "${members}" | grep $ma | cut -f2 -d',')"; then
                    ${pkgs.coreutils}/bin/echo ETCD_INITIAL_CLUSTER_STATE=existing > ${etcdEnvFile}
                    rm ${config.services.etcd.dataDir}/* -rf
                 fi
+
                 systemctl start etcd
             fi
         done
         '';
 
         serviceConfig = {
-            RestartSec = "30s";
+            RestartSec = "10s";
             Restart = "always";
         };
     };
@@ -187,10 +199,11 @@ in
         '';
 
         serviceConfig = {
-            RestartSec = "30s";
+            RestartSec = "15s";
             Restart = "always";
         };
     };
+
 
     services.etcd = {
         initialAdvertisePeerUrls = mkForce ["https://${theNode.address}:2380"];
@@ -202,7 +215,6 @@ in
         name = theNode.name;
     };
     systemd.services.etcd= {
-      after = mkForce [ "certmgr.service" ];
       serviceConfig = {
         ConfigurationDirectory = "etcd";
         EnvironmentFile = "-${etcdEnvFile}";
