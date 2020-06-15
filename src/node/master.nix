@@ -122,19 +122,19 @@ in
         set +e
         MEMBERS_CUR=$(${pkgs.etcd}/bin/etcdctl member list -w=simple | cut -f1,3 -d',' | tr -d ' ')
         MEMBERS_ADD=$(comm -13 <(echo "$MEMBERS_CUR" | cut -f2 -d',' | sort) <(printf "${members}" | cut -f1 -d',' | sort))
-        MEMBERS_REM=$(comm -23 <(echo "$MEMBERS_CUR" | cut -f2 -d',' | sort) <(printf "${members}" | cut -f1 -d',' | sort))
+        #MEMBERS_REM=$(comm -23 <(echo "$MEMBERS_CUR" | cut -f2 -d',' | sort) <(printf "${members}" | cut -f1 -d',' | sort))
 
-        for mr in $MEMBERS_REM; do
-            mid=$(echo "$MEMBERS_CUR" | grep $mr | cut -f1 -d',')
-
-            ${pkgs.etcd}/bin/etcdctl member remove $mid
-        done
+        #for mr in $MEMBERS_REM; do
+        #    mid=$(echo "$MEMBERS_CUR" | grep $mr | cut -f1 -d',')
+        #
+        #    ${pkgs.etcd}/bin/etcdctl member remove $mid
+        #done
 
         for ma in $MEMBERS_ADD; do
             if [[ "$ma" = "${theNode.name}" ]]; then
                 systemctl stop etcd
                 ${pkgs.etcd}/bin/etcdctl member add $ma --peer-urls="$(printf "${members}" | grep $ma | cut -f2 -d',')" > /run/kubernetes/etcd.env
-                rm "${config.services.etcd.dataDir}/member" -rf
+                rm ${config.services.etcd.dataDir}/* -rf
                 systemctl start etcd
             fi
         done
@@ -200,7 +200,7 @@ in
     };
     systemd.services.etcd.serviceConfig = {
         EnvironmentFile = "-/run/kubernetes/etcd.env";
-        ExecStartPost = "${pkgs.coreutils}/bin/echo ETCD_INITIAL_CLUSTER_STATE=existing >> /run/kubernetes/etcd.env";
+        ExecStartPost = "${pkgs.coreutils}/bin/echo ETCD_INITIAL_CLUSTER_STATE=existing > /run/kubernetes/etcd.env";
         #RestartSec = "5s";
         #Restart = "on-failure";
     };
