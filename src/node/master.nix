@@ -5,6 +5,7 @@ with lib;
 let top = config.services.kubernetes;
     cfsslAPITokenBaseName = "apitoken.secret";
     cfsslAPITokenPath = "${config.services.cfssl.dataDir}/${cfsslAPITokenBaseName}";
+    etcdEnvFile = "/run/kubernetes/etcd.env";
 in
 {
     environment = {
@@ -133,8 +134,10 @@ in
         for ma in $MEMBERS_ADD; do
             if [[ "$ma" = "${theNode.name}" ]]; then
                 systemctl stop etcd
-                ${pkgs.etcd}/bin/etcdctl member add $ma --peer-urls="$(printf "${members}" | grep $ma | cut -f2 -d',')" > /run/kubernetes/etcd.env
-                rm ${config.services.etcd.dataDir}/* -rf
+                if ${pkgs.etcd}/bin/etcdctl member add $ma --peer-urls="$(printf "${members}" | grep $ma | cut -f2 -d',')"; then
+                   ${pkgs.coreutils}/bin/echo ETCD_INITIAL_CLUSTER_STATE=existing > ${etcdEnvFile}
+                   rm ${config.services.etcd.dataDir}/* -rf
+                fi
                 systemctl start etcd
             fi
         done
@@ -198,11 +201,20 @@ in
         listenClientUrls = ["https://${theNode.address}:2379"]; # dont mkForce because the default 127.0.0.1 is expected.
         name = theNode.name;
     };
-    systemd.services.etcd.serviceConfig = {
-        EnvironmentFile = "-/run/kubernetes/etcd.env";
-        ExecStartPost = "${pkgs.coreutils}/bin/echo ETCD_INITIAL_CLUSTER_STATE=existing > /run/kubernetes/etcd.env";
+    systemd.services.etcd= {
+      after = mkForce [ "certmgr.service" ];
+      serviceConfig = {
+        EnvironmentFile = "-${etcdEnvFile}";
+        ExecStartPost = pkgs.writeScript "post-etcd-bootstrap" ''
+            #!${pkgs.stdenv.shell}
+
+            if ! grep "^ETCD_INITIAL_CLUSTER_STATE=existing$" ${etcdEnvFile}; then
+              ${pkgs.coreutils}/bin/echo ETCD_INITIAL_CLUSTER_STATE=existing >> ${etcdEnvFile}
+            fi
+        '';
         #RestartSec = "5s";
         #Restart = "on-failure";
+      };
     };
 
     services.kubernetes = {
