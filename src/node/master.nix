@@ -149,62 +149,6 @@ in
         };
     };
 
-    # systemd.paths.etcd = {
-    #   wantedBy = [ "multi-user.target" ];
-    #   pathConfig = {
-    #     PathExists = "${top.secretsPath}/etcd.pem";
-    #     Unit = "etcd.service";
-    #   };
-    # };
-
-    # systemd.services.etcd-runtime-reconfigure = {
-    #     description = "Etcd auto runtime reconfiguration";
-    #     wantedBy = [ "etcd.service" ];
-    #     after = [ "etcd.service" ];
-    #     environment = {
-    #         ETCDCTL_API    = "3";
-    #         ETCDCTL_CACERT = "${top.secretsPath}/ca.pem";
-    #         ETCDCTL_CERT   = "${top.secretsPath}/etcd.pem";
-    #         ETCDCTL_KEY    = "${top.secretsPath}/etcd-key.pem";
-    #         ETCDCTL_ENDPOINTS = "https://${theClusterName}:2379";
-    #     };
-    #     script = let members = concatMapStringsSep "\\n" (n: "${n.name},${concatStringsSep "," nodes."${n.name}".config.services.etcd.listenPeerUrls}") theMasterNodes; in ''
-    #     set +e
-    #     MEMBERS_CUR=$(${pkgs.etcd}/bin/etcdctl member list -w=simple | cut -f1,3 -d',' | tr -d ' ')
-    #     MEMBERS_ADD=$(comm -13 <(echo "$MEMBERS_CUR" | cut -f2 -d',' | sort) <(printf "${members}" | cut -f1 -d',' | sort))
-    #     #MEMBERS_REM=$(comm -23 <(echo "$MEMBERS_CUR" | cut -f2 -d',' | sort) <(printf "${members}" | cut -f1 -d',' | sort))
-
-    #     #for mr in $MEMBERS_REM; do
-    #     #    mid=$(echo "$MEMBERS_CUR" | grep $mr | cut -f1 -d',')
-    #     #
-    #     #    ${pkgs.etcd}/bin/etcdctl member remove $mid
-    #     #done
-
-    #     for ma in $MEMBERS_ADD; do
-    #         if [[ "$ma" = "${theNode.name}" ]]; then
-    #             etcd_status=$(systemctl is-active etcd.service)
-    #             if [ "$etcd_status" = "active" ]; then
-    #                systemctl stop etcd
-    #             fi
-
-    #             if ${pkgs.etcd}/bin/etcdctl member add $ma --peer-urls="$(printf "${members}" | grep $ma | cut -f2 -d',')"; then
-    #                ${pkgs.coreutils}/bin/echo ETCD_INITIAL_CLUSTER_STATE=existing > ${etcdEnvFile}
-    #                rm ${config.services.etcd.dataDir}/* -rf
-    #             fi
-
-    #             systemctl start etcd
-    #         fi
-    #     done
-    #     '';
-
-    #     serviceConfig = {
-    #         RestartSec = "10s";
-    #         Restart = "always";
-    #     };
-    # };
-
-    #systemd.services.etcd.environment.ETCD_INITIAL_CLUSTER_STATE = mkForce "existing";
-
     services.etcd = {
         initialAdvertisePeerUrls = mkForce ["https://${theNode.address}:2380"];
         listenPeerUrls = mkForce ["https://${theNode.address}:2380"];
@@ -214,10 +158,8 @@ in
         listenClientUrls = ["https://${theNode.address}:2379"]; # dont mkForce because the default 127.0.0.1 is expected.
         name = theNode.name;
     };
-
     systemd.services.etcd= {
       serviceConfig = {
-        ConditionPathExists="${top.secretsPath}/etcd.pem";
         ConfigurationDirectory = "etcd";
         EnvironmentFile = "-${etcdEnvFile}";
         ExecStartPre  = pkgs.writeScript "pre-etcd-bootstrap" ''
@@ -230,10 +172,12 @@ in
             export ETCDCTL_ENDPOINTS="https://${theClusterName}:2379"
 
             if test ! -f "${top.secretsPath}/etcd.pem" || test ! -f "${top.secretsPath}/etcd-key.pem"; then
+               echo "Waiting for PKI initialization..."
                exit 1
             fi
 
-            if ! ${pkgs.etcd}/bin/etcdctl member list; then
+            if ! ${pkgs.etcd}/bin/etcdctl member list >/dev/null 2>&1; then
+               echo "Bootstrapping etcd cluster for the first time."
                exit 0
             fi
 
@@ -250,10 +194,10 @@ in
             #!${pkgs.stdenv.shell}
 
             if ! grep "^ETCD_INITIAL_CLUSTER_STATE=existing$" ${etcdEnvFile}; then
-              ${pkgs.coreutils}/bin/echo ETCD_INITIAL_CLUSTER_STATE=existing >> ${etcdEnvFile}
+               ${pkgs.coreutils}/bin/echo ETCD_INITIAL_CLUSTER_STATE=existing > ${etcdEnvFile}
             fi
         '';
-        RestartSec = "30s";
+        RestartSec = "60s";
         Restart = "on-failure";
       };
     };

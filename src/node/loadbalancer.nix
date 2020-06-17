@@ -49,6 +49,7 @@ in
               mode tcp
               balance roundrobin
               option tcp-check
+              default-server inter 100
               ${serveOn 2379}
         '';
     };
