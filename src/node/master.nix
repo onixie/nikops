@@ -149,13 +149,13 @@ in
         };
     };
 
-    systemd.paths.etcd = {
-      wantedBy = [ "multi-user.target" ];
-      pathConfig = {
-        PathExists = "${top.secretsPath}/etcd.pem";
-        Unit = "etcd.service";
-      };
-    };
+    # systemd.paths.etcd = {
+    #   wantedBy = [ "multi-user.target" ];
+    #   pathConfig = {
+    #     PathExists = "${top.secretsPath}/etcd.pem";
+    #     Unit = "etcd.service";
+    #   };
+    # };
 
     # systemd.services.etcd-runtime-reconfigure = {
     #     description = "Etcd auto runtime reconfiguration";
@@ -217,6 +217,7 @@ in
 
     systemd.services.etcd= {
       serviceConfig = {
+        ConditionPathExists="${top.secretsPath}/etcd.pem";
         ConfigurationDirectory = "etcd";
         EnvironmentFile = "-${etcdEnvFile}";
         ExecStartPre  = pkgs.writeScript "pre-etcd-bootstrap" ''
@@ -228,6 +229,10 @@ in
             export ETCDCTL_KEY="${top.secretsPath}/etcd-key.pem"
             export ETCDCTL_ENDPOINTS="https://${theClusterName}:2379"
 
+            if test ! -f "${top.secretsPath}/etcd.pem" || test ! -f "${top.secretsPath}/etcd-key.pem"; then
+               exit 1
+            fi
+
             if ! ${pkgs.etcd}/bin/etcdctl member list; then
                exit 0
             fi
@@ -236,7 +241,7 @@ in
                exit 0
             fi
 
-            if ${pkgs.etcd}/bin/etcdctl member add ${theNode.name} --peer-urls="https://${theNode.address}:2379"; then
+            if ${pkgs.etcd}/bin/etcdctl member add ${theNode.name} --peer-urls="https://${theNode.address}:2380"; then
                rm ${config.services.etcd.dataDir}/* -rf
                ${pkgs.coreutils}/bin/echo ETCD_INITIAL_CLUSTER_STATE=existing > ${etcdEnvFile}
             fi
@@ -248,8 +253,8 @@ in
               ${pkgs.coreutils}/bin/echo ETCD_INITIAL_CLUSTER_STATE=existing >> ${etcdEnvFile}
             fi
         '';
-        #RestartSec = "5s";
-        #Restart = "on-failure";
+        RestartSec = "30s";
+        Restart = "on-failure";
       };
     };
 
