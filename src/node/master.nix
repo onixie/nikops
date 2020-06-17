@@ -68,45 +68,78 @@ in
     # };
 
     # hack: workaround for the bug describe above
-    systemd.services.cfssl.preStart = mkBefore ''
-      set -e
+    systemd.services.cfssl = {
+      preStart = mkBefore ''
+          if test ! -f /run/keys/cfssl-ca && test ! -f ${top.pki.caCertPathPrefix}.pem; then
+            exit 1
+          fi
 
-      updateKey() {
-        test -f "$3" && chmod u+w "$3"
-        cp -upd "/run/keys/$2" "$3" && chown cfssl:cfssl "$3" && chmod $1 "$3"
-      }
+          if test ! -f /run/keys/cfssl-ca-key && test ! -f ${top.pki.caCertPathPrefix}-key.pem; then
+            exit 1
+          fi
 
-      # Replacement for genCfsslCACert
-      #ln -fs /run/keys/cfssl-ca ${top.pki.caCertPathPrefix}.pem
-      updateKey 0444    cfssl-ca ${top.pki.caCertPathPrefix}.pem
+          if test ! -f /run/keys/cfssl-api-token && test ! -f ${cfsslAPITokenPath}; then
+            exit 1
+          fi
 
-      #ln -fs /run/keys/cfssl-ca-key ${top.pki.caCertPathPrefix}-key.pem
-      updateKey 0400    cfssl-ca-key ${top.pki.caCertPathPrefix}-key.pem
+          set +e
 
-      # Replacement for genCfsslAPIToken
-      #ln -fs /run/keys/cfssl-api-token ${cfsslAPITokenPath}
-      updateKey 0400    cfssl-api-token ${cfsslAPITokenPath}
+          updateKey() {
+          test -f "$3" && chmod u+w "$3"
+          cp -upd "/run/keys/$2" "$3" && chown cfssl:cfssl "$3" && chmod $1 "$3"
+          }
 
-    '';
+          # Replacement for genCfsslCACert
+          #ln -fs /run/keys/cfssl-ca ${top.pki.caCertPathPrefix}.pem
+          updateKey 0444    cfssl-ca ${top.pki.caCertPathPrefix}.pem
 
-    systemd.services.cfssl.serviceConfig = {
-      StateDirectory = mkForce "cfssl"; # checkme: should fix in upstream. Value to StateDirectory must be relative path.
-      StateDirectoryMode = mkForce 711;
+          #ln -fs /run/keys/cfssl-ca-key ${top.pki.caCertPathPrefix}-key.pem
+          updateKey 0400    cfssl-ca-key ${top.pki.caCertPathPrefix}-key.pem
+
+          # Replacement for genCfsslAPIToken
+          #ln -fs /run/keys/cfssl-api-token ${cfsslAPITokenPath}
+          updateKey 0400    cfssl-api-token ${cfsslAPITokenPath}
+
+          set -e
+      '';
+      serviceConfig = {
+        StateDirectory = mkForce "cfssl"; # checkme: should fix in upstream. Value to StateDirectory must be relative path.
+        StateDirectoryMode = mkForce 711;
+        StartLimitInterval = mkForce 0;
+      };
     };
 
-    systemd.services.kube-certmgr-bootstrap.script = mkForce ''
-      set -e
+    systemd.services.certmgr = {
+      preStart = mkBefore ''
+          if test ! -f /run/keys/kubernetes-sa-signer && test ! -f ${top.secretsPath}/service-account.pem; then
+            exit 1
+          fi
 
-      ln -fs ${top.pki.caCertPathPrefix}.pem ${top.secretsPath}/ca.pem
-      ln -fs ${cfsslAPITokenPath} ${top.secretsPath}/apitoken.secret
+          if test ! -f /run/keys/kubernetes-sa-signer-key && test ! -f ${top.secretsPath}/service-account-key.pem; then
+            exit 1
+          fi
 
-      updateKey() {
-        test -f "$3" && chmod u+w "$3"
-        cp -upd "/run/keys/$2" "$3" && chown kubernetes:nogroup "$3" && chmod $1 "$3"
-      }
-      updateKey 0444 kubernetes-sa-signer     ${top.secretsPath}/service-account.pem
-      updateKey 0400 kubernetes-sa-signer-key ${top.secretsPath}/service-account-key.pem
-    '';
+          if test ! -f ${top.pki.caCertPathPrefix}.pem || test ! -f ${cfsslAPITokenPath}; then
+            exit 1
+          fi
+
+          set +e
+
+          mkdir -p ${top.secretsPath} && chmod 0755 ${top.secretsPath}
+
+          ln -fs ${top.pki.caCertPathPrefix}.pem ${top.secretsPath}/ca.pem
+          ln -fs ${cfsslAPITokenPath} ${top.secretsPath}/apitoken.secret
+
+          updateKey() {
+          test -f "$3" && chmod u+w "$3"
+          cp -upd "/run/keys/$2" "$3" && chown kubernetes:nogroup "$3" && chmod $1 "$3"
+          }
+          updateKey 0444 kubernetes-sa-signer     ${top.secretsPath}/service-account.pem
+          updateKey 0400 kubernetes-sa-signer-key ${top.secretsPath}/service-account-key.pem
+
+          set -e
+      '';
+    };
 
     systemd.services.kube-node-role-reconfigure = {
         description = "K8s node role auto reconfiguration";
@@ -144,8 +177,8 @@ in
         '';
 
         serviceConfig = {
-            RestartSec = "15s";
-            Restart = "always";
+          RestartSec = "15s";
+          Restart = "always";
         };
     };
 
@@ -197,8 +230,14 @@ in
                ${pkgs.coreutils}/bin/echo ETCD_INITIAL_CLUSTER_STATE=existing > ${etcdEnvFile}
             fi
         '';
-        RestartSec = "60s";
+        RestartSec = "10s";
         Restart = "on-failure";
+      };
+    };
+
+    systemd.services.kubelet = {
+      serviceConfig = {
+        StartLimitInterval = mkForce 0;
       };
     };
 
