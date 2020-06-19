@@ -18,6 +18,13 @@ in mkMerge
             # networking.usePredictableInterfaceNames = false; # work with virtualbox but need to reboot once
 
             services.flannel.iface    = theNetIF;
+            systemd.network = {
+              enable = true;
+              links."10-flannel" = {
+                matchConfig.OriginalName = "flannel*";
+                linkConfig.MACAddressPolicy="none";
+              };
+            };
 
             networking.nameservers    = theNetwork.dns;
             networking.extraHosts     = ''
