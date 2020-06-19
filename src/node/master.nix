@@ -292,6 +292,9 @@ in
               --authorization-kubeconfig=${kc} 
             '';
         };
+        kubelet = {
+          extraOpts = mkForce "--resolv-conf /run/systemd/resolve/resolv.conf";
+        };
 
         apiserverAddress = mkForce "https://${theNode.address}:${toString top.apiserver.securePort}"; # bugs in nixos/kubernetes, port is missing if use advertise
 

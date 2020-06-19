@@ -59,5 +59,6 @@ in
         roles = [ "node" ];
         masterAddress = theClusterName;
         pki.pkiTrustOnBootstrap = false;
+        kubelet.extraOpts = mkForce "--resolv-conf /run/systemd/resolve/resolv.conf";
     };
 }
