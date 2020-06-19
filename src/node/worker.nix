@@ -41,6 +41,7 @@ in
           chown root:root ${top.secretsPath}/ca.pem && chmod 0444 ${top.secretsPath}/ca.pem
 
           test -f ${top.secretsPath}/apitoken.secret && chmod u+w ${top.secretsPath}/apitoken.secret
+          test ! -s ${top.secretsPath}/apitoken.secret && rm ${top.secretsPath}/apitoken.secret
           cp -upd /run/keys/cfssl-api-token ${top.secretsPath}/apitoken.secret
           chown root:root ${top.secretsPath}/apitoken.secret && chmod 0400 ${top.secretsPath}/apitoken.secret
 
