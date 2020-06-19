@@ -106,6 +106,7 @@ in
         StateDirectory = mkForce "cfssl"; # checkme: should fix in upstream. Value to StateDirectory must be relative path.
         StateDirectoryMode = mkForce 711;
         StartLimitInterval = mkForce 0;
+        RestartSec = mkForce "10s";
       };
     };
 
@@ -127,8 +128,8 @@ in
 
           mkdir -p ${top.secretsPath} && chmod 0755 ${top.secretsPath}
 
-          ln -fs ${top.pki.caCertPathPrefix}.pem ${top.secretsPath}/ca.pem
-          ln -fs ${cfsslAPITokenPath} ${top.secretsPath}/apitoken.secret
+          test -s ${top.pki.caCertPathPrefix}.pem && ln -fs ${top.pki.caCertPathPrefix}.pem ${top.secretsPath}/ca.pem
+          test -s ${cfsslAPITokenPath} && ln -fs ${cfsslAPITokenPath} ${top.secretsPath}/apitoken.secret
 
           updateKey() {
           test -f "$3" && chmod u+w "$3"
@@ -139,6 +140,9 @@ in
 
           set -e
       '';
+      serviceConfig = {
+        StartLimitInterval = mkForce 0;
+      };
     };
 
     systemd.services.kube-node-role-reconfigure = {
@@ -177,6 +181,7 @@ in
         '';
 
         serviceConfig = {
+          StartLimitInterval = mkForce 0;
           RestartSec = "15s";
           Restart = "always";
         };
@@ -230,12 +235,18 @@ in
                ${pkgs.coreutils}/bin/echo ETCD_INITIAL_CLUSTER_STATE=existing > ${etcdEnvFile}
             fi
         '';
+        StartLimitInterval = mkForce 0;
         RestartSec = "10s";
-        Restart = "on-failure";
       };
     };
 
     systemd.services.kubelet = {
+      serviceConfig = {
+        StartLimitInterval = mkForce 0;
+      };
+    };
+
+    systemd.services.kube-apiserver = {
       serviceConfig = {
         StartLimitInterval = mkForce 0;
       };
