@@ -28,7 +28,7 @@ in mkMerge
 
             networking.nameservers    = theNetwork.dns;
             networking.extraHosts     = ''
-            ${theClusterEndpoint} ${theClusterName}
+            ${theClusterEndpoint} ${theClusterName} ${theClusterName}.default ${theClusterName}.default.svc ${theClusterName}.default.svc.cluster ${theClusterName}.default.svc.cluster.local
             ${concatMapStringsSep "\n" (n: "${n.address} ${n.name}") theNodes}
             '';
 
@@ -51,7 +51,7 @@ in mkMerge
         (mkIf (hasAttr "url" theProxy && theProxy.url != null)
             {
                 networking.proxy.default  = theProxy.url;
-                networking.proxy.noProxy  = "127.0.0.1,localhost,${theClusterName},${theNetwork.subnet},${concatMapStringsSep "," (n: n.name) theNodes}";
+                networking.proxy.noProxy  = "127.0.0.1,localhost,${theClusterName},*.svc.cluster.local,${theNetwork.subnet},${concatMapStringsSep "," (n: n.name) theNodes}";
             }
         )
 
