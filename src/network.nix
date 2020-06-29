@@ -51,7 +51,7 @@ in mkMerge
         (mkIf (hasAttr "url" theProxy && theProxy.url != null)
             {
                 networking.proxy.default  = theProxy.url;
-                networking.proxy.noProxy  = "127.0.0.1,localhost,${theClusterName},${theClusterName}.default,${theClusterName}.default.svc,${theClusterName}.default.svc.cluster,${theClusterName}.default.svc.cluster.local,${theNetwork.subnet},${concatMapStringsSep "," (n: n.name) theNodes},${if hasAttr "exl" theProxy && theProxy.exl != null then theProxy.exl else ""}";
+                networking.proxy.noProxy  = "127.0.0.1,localhost,${theClusterName},${theClusterName}.default,${theClusterName}.default.svc,${theClusterName}.default.svc.cluster,${theClusterName}.default.svc.cluster.local,etcd.local,${theNetwork.subnet},${concatMapStringsSep "," (n: n.name) theNodes},${concatMapStringsSep "," (n: n.address) theNodes},${if hasAttr "exl" theProxy && theProxy.exl != null then theProxy.exl else ""}";
             }
         )
 
