@@ -14,7 +14,8 @@ let
     nixops-libvirtd = builtins.fetchGit {
         url = https://github.com/onixie/nixops-libvirtd;
         ref = "network-resource-support";
-        rev = "992b06a699faa2ae51f82ecab826db3ce5ec9887";
+        #rev = "992b06a699faa2ae51f82ecab826db3ce5ec9887";
+        rev = "7268db3e1a17940abe5cb15868d4dfb440b8b846";
     };
 
     pkgs = import nixpkgs { config = {}; };

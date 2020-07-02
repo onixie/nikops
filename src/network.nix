@@ -7,7 +7,7 @@ let theProxy = import <k8s/proxy> ;
                then "enp0s3"
                else
                    if config.deployment.targetEnv == "libvirtd"
-                   then "enp0s2"
+                   then "enp0s3"
                    else null;
 in mkMerge
     [
