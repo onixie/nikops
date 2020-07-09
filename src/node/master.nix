@@ -326,7 +326,13 @@ in
           namespace = "kube-system";
         };
         data = {
-          Corefile = ''
+          Corefile = let
+            fltHosts = hs: concatStringsSep "\n    " (
+              filter (
+                l: !(hasPrefix "127.0.0.1" l || hasSuffix "encrypted" l || hasInfix " kubernetes " l || l == "")
+              ) (splitString "\n" hs)
+            );
+          in ''
           .:${toString 10053} {
             errors
             health :${toString 10054}
@@ -336,7 +342,7 @@ in
               fallthrough in-addr.arpa ip6.arpa
             }
             hosts {
-              ${nodes."${theNode.name}".config.networking.extraHosts}
+              ${fltHosts nodes."${theNode.name}".config.networking.extraHosts}
               fallthrough
             }
             prometheus :${toString 10055}
