@@ -23,7 +23,7 @@ generate_pki() {
         echo Generate API Token for CA interaction
         head -c $(($CFSSL_API_TOKEN_LENGTH / 2)) /dev/urandom | od -An -t x | tr -d ' ' > $K8S_PKI/apitoken.secret
     fi
-    
+
     if ! [ -f $K8S_PKI/sa.pem ]; then
         cat $(cert_spec sa.json) | cfssl gencert -ca=$K8S_PKI/ca.pem -ca-key=$K8S_PKI/ca-key.pem -config=$(cert_spec ca-config.json) -profile=sa - | cfssljson -bare $K8S_PKI/sa
     fi
@@ -173,7 +173,7 @@ case "$SUB_COMMAND" in
         ;;
     kubectl|k8s|kubernetes|cluster)
         MASTER_NODE=$(nixops ssh-for-each $DEFAULT_DEPLOYMENT_NAME -- 'which kubectl 1>/dev/null 2>&1 && printf "nikops> master name is %s" $(cat /etc/hostname)' 2>&1 \
-                          | sed -ne 's/^.*> *nikops> master name is \(.*\)$/\1/p')
+                          | sed -ne 's/^.*> *nikops> master name is \(.*\)$/\1/p' | head -1)
         nixops ssh $DEFAULT_DEPLOYMENT_NAME $MASTER_NODE kubectl --kubeconfig=/etc/kubernetes/cluster-admin.kubeconfig $@
         ;;
     overlay-network) #experimental
@@ -195,6 +195,6 @@ case "$SUB_COMMAND" in
         clean_node_ssh_known_hosts
         ;&
     *)
-        nixops $SUB_COMMAND $DEFAULT_DEPLOYMENT_NAME $@
+        nixops $SUB_COMMAND $@
         ;;
 esac
