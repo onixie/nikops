@@ -3,19 +3,14 @@ theClusterName: theClusterEndpoint: theNode: theNodes: theNetwork: { lib, config
 with lib;
 
 let theProxy = import <k8s/proxy> ;
-    theNetIF = if config.deployment.targetEnv == "virtualbox"
-               then "enp0s3"
-               else
-                   if config.deployment.targetEnv == "libvirtd"
-                   then "enp0s3"
-                   else null;
+    theNetIF = "eth0" ;
 in mkMerge
     [
         {
             networking.hostName    = theNode.name;
             networking.privateIPv4 = mkForce theNode.address; # bug? nixops should respect this configuration.
             deployment.targetHost  = theNode.address;
-            # networking.usePredictableInterfaceNames = false; # work with virtualbox but need to reboot once
+            networking.usePredictableInterfaceNames = false; # work with virtualbox but need to reboot once
 
             services.flannel.iface    = theNetIF;
             systemd.network = {
