@@ -48,7 +48,7 @@ pkgs.mkShell {
         [
             "nixpkgs=${nixpkgs}"
 
-            (addSrc [ "cluster" "network" "node/master" "node/worker" "node/loadbalancer" "system" ])
+            (addSrc [ "cluster" "network" "node/master" "node/worker" "node/loadbalancer" "system" "lib" ])
 
             (if builtins.pathExists (curDir + "/proxy.nix")
              then "k8s/proxy=./proxy.nix"
