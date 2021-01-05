@@ -1,8 +1,10 @@
-theCluster:
+theCluster':
 
 with import <nixpkgs/lib> ;
 
-let theName = theCluster.name or "kubernetes";
+let theCluster = if builtins.typeOf theCluster' == "lambda" then theCluster' (import <nixpkgs/lib>) else theCluster';
+
+    theName = theCluster.name or "kubernetes";
 
     theNetwork = theCluster.network // {
       name = theCluster.network.name or "${theName}-network";
@@ -70,8 +72,9 @@ theResources // mapAttrs (_: theNode:
                 (import theNode.nix   theName theEndpoint theNode (attrValues theMasterNodes))
                 (import <k8s/network> theName theEndpoint theNode (attrValues theNodes) theNetwork)
                 (import <k8s/system>  (theDeployment theNode resources))
-                (theNode.extraConfig or (_: {}))
-            ] ++ (map (p: import "${<k8s-addons>}/${p}") (attrNames (builtins.readDir <k8s-addons>)))
+            ]
+            ++ (if theNode ? extraConfig && builtins.typeOf theNode.extraConfig == "list" then theNode.extraConfig else [ (theNode.extraConfig or (_: {})) ])
+            ++ (map (p: import "${<k8s-addons>}/${p}") (attrNames (builtins.readDir <k8s-addons>)))
         ))
     )
 ) theNodes
